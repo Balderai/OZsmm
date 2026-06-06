@@ -1,36 +1,118 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mukellef Portal
 
-## Getting Started
+Mobile-first PWA client portal for an accounting firm.
 
-First, run the development server:
+The first build runs in local mock mode without Supabase credentials. Supabase Auth, Postgres, Storage, RLS, Web Push, and Vercel integration points are prepared for the real deployment pass.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Local Mock Mode
+
+1. Copy `.env.example` to `.env.local`
+2. Set `MOCK_MODE=true`
+3. Run `npm install`
+4. Run `npm run dev`
+5. Open `http://localhost:3000/client` or `http://localhost:3000/accountant`
+
+Mock mode includes:
+
+- one firm
+- one accountant profile
+- two client companies
+- exactly three client folders
+- declaration and accrual document rows
+- client-uploaded photo/document rows
+- open document requests
+- in-app notifications
+
+## Supabase Mode
+
+1. Create a Supabase project
+2. Run SQL migrations in `supabase/migrations` in order:
+   - `0001_core_schema.sql`
+   - `0002_rls_policies.sql`
+   - `0003_storage_policies.sql`
+   - `0004_seed_demo.sql`
+3. Confirm the private Storage bucket `client-documents` exists
+4. Create Supabase Auth users
+5. Insert matching `profiles` and `client_memberships` rows using the Auth user ids
+6. Set env vars in `.env.local`
+7. Set `MOCK_MODE=false`
+
+Required local env:
+
+```env
+NEXT_PUBLIC_APP_NAME=Mukellef Portal
+NEXT_PUBLIC_FIRM_NAME=Demo Mali Musavirlik
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=mailto:admin@example.com
+MOCK_MODE=true
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`SUPABASE_SERVICE_ROLE_KEY` and `VAPID_PRIVATE_KEY` are server-only. Do not expose them through `NEXT_PUBLIC_*`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Vercel
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Set all env vars in Vercel Project Settings:
 
-## Learn More
+```env
+NEXT_PUBLIC_APP_NAME=Mukellef Portal
+NEXT_PUBLIC_FIRM_NAME=<real firm name>
+NEXT_PUBLIC_SUPABASE_URL=<supabase url>
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<publishable anon key>
+SUPABASE_SERVICE_ROLE_KEY=<service role key>
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=<public vapid key>
+VAPID_PRIVATE_KEY=<private vapid key>
+VAPID_SUBJECT=mailto:<firm email>
+MOCK_MODE=false
+```
 
-To learn more about Next.js, take a look at the following resources:
+## PWA Push Notes
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Push notifications require browser support and user permission. iOS requires the PWA to be added to the home screen. In-app notifications remain the reliable fallback.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The service worker is `public/sw.js`. Push send logic runs server-side through `POST /api/notifications/send` and uses `web-push`.
 
-## Deploy on Vercel
+## Routes
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `/client` - client portal home
+- `/client/folders/[folderType]` - one of `declarations`, `accruals`, `documents_photos`
+- `/accountant` - accountant dashboard
+- `/login` - mock login placeholder and real Supabase auth attachment point
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## API Contracts
+
+- `POST /api/documents/upload`
+- `POST /api/documents/signed-url`
+- `POST /api/notifications/subscribe`
+- `POST /api/notifications/unsubscribe`
+- `POST /api/notifications/send`
+
+## Verification
+
+```powershell
+npm run lint
+npm run build
+npm test
+```
+
+Browser QA viewports:
+
+- desktop `1440x900`
+- mobile `390x844`
+- mobile `430x932`
+
+Check that the client sees exactly three folders:
+
+- Beyannameler
+- Tahakkuklar
+- Evrak ve Fotograflar
+
+## Known Limits In V1
+
+- Real Supabase credentials are not included.
+- Supabase Auth UI is a placeholder so local mock mode stays simple.
+- Push can be fully verified only after VAPID keys and HTTPS/local install context are available.
+- No GIB, e-signature, payment, WhatsApp, OCR, native app, or accounting package integration is included.
