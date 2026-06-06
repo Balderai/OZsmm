@@ -43,6 +43,10 @@ const tablePermissions = [
 const seedFirmId = "11111111-1111-4111-8111-111111111111";
 const seedClientId = "44444444-4444-4444-8444-444444444444";
 const secondClientId = "55555555-5555-4555-8555-555555555555";
+const seedDocumentId = "66666666-6666-4666-8666-666666666666";
+const seedUploadId = "88888888-8888-4888-8888-888888888888";
+const seedRequestId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const seedNotificationId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
 async function main() {
   console.log(`Appwrite project: ${projectId}`);
@@ -299,6 +303,54 @@ async function ensureSeedRows() {
     contact_email: "selin@example.com",
     contact_phone: "+90 533 000 00 00",
     is_active: true,
+  });
+
+  await upsert(tableIds.documents, seedDocumentId, {
+    firm_id: seedFirmId,
+    client_id: seedClientId,
+    folder_type: "declarations",
+    origin: "accountant_shared",
+    title: "Appwrite Canli KDV Beyannamesi",
+    description: "Canli Appwrite verisinden gelen demo beyanname.",
+    storage_bucket: bucketId,
+    storage_path: `firm_${seedFirmId}/client_${seedClientId}/declarations/2026/06/${seedDocumentId}__appwrite-kdv.pdf`,
+    mime_type: "application/pdf",
+    file_size_bytes: 240000,
+    status: "active",
+    shared_at: "2026-06-06T18:00:00.000Z",
+  });
+
+  await upsert(tableIds.documents, seedUploadId, {
+    firm_id: seedFirmId,
+    client_id: seedClientId,
+    folder_type: "documents_photos",
+    origin: "client_uploaded",
+    title: "Appwrite Canli Fatura Fotograf",
+    description: "Canli Appwrite verisinden gelen demo yukleme.",
+    storage_bucket: bucketId,
+    storage_path: `firm_${seedFirmId}/client_${seedClientId}/documents_photos/2026/06/${seedUploadId}__appwrite-fatura.jpg`,
+    mime_type: "image/jpeg",
+    file_size_bytes: 920000,
+    status: "active",
+  });
+
+  await upsert(tableIds.requests, seedRequestId, {
+    firm_id: seedFirmId,
+    client_id: seedClientId,
+    folder_type: "documents_photos",
+    title: "Appwrite canli satis faturalarini yukleyin",
+    description: "Bu talep Appwrite tablosundan geliyor.",
+    status: "open",
+    due_at: "2026-06-20T20:59:00.000Z",
+  });
+
+  await upsert(tableIds.notifications, seedNotificationId, {
+    firm_id: seedFirmId,
+    client_id: seedClientId,
+    category: "document_shared",
+    title: "Appwrite canli evrak paylasildi",
+    body: "Bu bildirim Appwrite notifications tablosundan geliyor.",
+    action_url: "/client/folders/declarations",
   });
 }
 

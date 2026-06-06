@@ -11,15 +11,17 @@ export function AccountantDashboard({
   metrics,
   documents,
   requests,
+  dataSourceLabel,
 }: {
   clients: ClientCompany[];
   metrics: DashboardMetrics;
   documents: PortalDocument[];
   requests: DocumentRequest[];
+  dataSourceLabel: string;
 }) {
   const [query, setQuery] = useState("");
   const [selectedClientId, setSelectedClientId] = useState(clients[0]?.id);
-  const [message, setMessage] = useState("Mock mode aktif: islemler UI akisini gosterir.");
+  const [message, setMessage] = useState(`${dataSourceLabel} verisi aktif.`);
   const selectedClient = clients.find((client) => client.id === selectedClientId) || clients[0];
   const filteredClients = useMemo(
     () => clients.filter((client) => client.companyName.toLocaleLowerCase("tr-TR").includes(query.toLocaleLowerCase("tr-TR"))),
@@ -28,8 +30,8 @@ export function AccountantDashboard({
   const clientDocuments = documents.filter((document) => document.clientId === selectedClient?.id);
   const clientRequests = requests.filter((request) => request.clientId === selectedClient?.id);
 
-  function handleMockSubmit(action: string) {
-    setMessage(`${action} kaydi mock mode'da hazirlandi. Supabase modunda server route'a gidecek.`);
+  function handleActionSubmit(action: string) {
+    setMessage(`${action} kaydi hazirlandi. Yazma endpointi ${dataSourceLabel} backendine baglanacak.`);
   }
 
   return (
@@ -86,19 +88,19 @@ export function AccountantDashboard({
               icon={FileUp}
               title="Evrak paylas"
               button="Paylas"
-              onSubmit={() => handleMockSubmit("Evrak paylasma")}
+              onSubmit={() => handleActionSubmit("Evrak paylasma")}
             />
             <ActionPanel
               icon={Send}
               title="Evrak talebi"
               button="Talep olustur"
-              onSubmit={() => handleMockSubmit("Evrak talebi")}
+              onSubmit={() => handleActionSubmit("Evrak talebi")}
             />
             <ActionPanel
               icon={Bell}
               title="Hatirlatma"
               button="Gonder"
-              onSubmit={() => handleMockSubmit("Hatirlatma")}
+              onSubmit={() => handleActionSubmit("Hatirlatma")}
             />
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
