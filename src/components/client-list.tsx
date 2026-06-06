@@ -2,8 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Check, FileUp, FolderOpen, Plus, Search, Send } from "lucide-react";
+import { Bell, Check, FileUp, Plus, Search, Send } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { DocumentOpenButton } from "@/components/document-open-button";
+import { DocumentPreview } from "@/components/document-preview";
 import { FOLDER_LABELS, FOLDER_TYPES } from "@/lib/constants";
 import type { ClientCompany, DashboardMetrics, DocumentRequest, PortalDocument } from "@/types/domain";
 
@@ -296,12 +298,15 @@ export function AccountantDashboard({
               <div className="mt-2 space-y-2">
                 {clientDocuments.map((document) => (
                   <div key={document.id} className="flex items-center gap-2 rounded-md border border-slate-200 p-2">
-                    <FolderOpen aria-hidden="true" size={16} className="text-cyan-800" />
+                    <DocumentPreview documentId={document.id} title={document.title} mimeType={document.mimeType} compact />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{document.title}</p>
-                      <p className="text-xs text-slate-500">{FOLDER_LABELS[document.folderType]}</p>
+                      <p className="truncate text-xs text-slate-500">
+                        {FOLDER_LABELS[document.folderType]} - {document.origin === "client_uploaded" ? "Mukellef yukledi" : "Musavir paylasti"}
+                      </p>
                     </div>
                     {document.viewedByClient && <Check aria-label="Okundu" size={16} className="text-emerald-700" />}
+                    <DocumentOpenButton documentId={document.id} title={document.title} />
                   </div>
                 ))}
               </div>

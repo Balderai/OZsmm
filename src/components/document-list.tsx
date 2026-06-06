@@ -1,5 +1,6 @@
-import { Eye, FileText } from "lucide-react";
+import { Eye } from "lucide-react";
 import { DocumentOpenButton } from "@/components/document-open-button";
+import { DocumentPreview } from "@/components/document-preview";
 import { FOLDER_LABELS } from "@/lib/constants";
 import type { PortalDocument } from "@/types/domain";
 
@@ -12,9 +13,7 @@ export function DocumentList({ documents }: { documents: PortalDocument[] }) {
     <div className="space-y-2">
       {documents.map((document) => (
         <article key={document.id} className="flex min-h-20 items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-          <span className="grid size-10 shrink-0 place-items-center rounded-md bg-slate-100 text-slate-700">
-            <FileText aria-hidden="true" size={20} />
-          </span>
+          <DocumentPreview documentId={document.id} title={document.title} mimeType={document.mimeType} />
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-sm font-semibold">{document.title}</h3>
             <p className="mt-1 truncate text-xs text-slate-500">
