@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { appConfig } from "@/lib/config";
+import { hasAppwriteServerConfig } from "@/lib/appwrite/tables";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { signedUrlPayloadSchema } from "@/lib/validators";
@@ -21,6 +22,10 @@ export async function POST(request: Request) {
 
   if (appConfig.mockMode) {
     return NextResponse.json({ signed_url: `/mock-documents/${payload.data.document_id}.pdf`, mode: "mock" });
+  }
+
+  if (hasAppwriteServerConfig()) {
+    return NextResponse.json({ signed_url: `/api/documents/download?document_id=${payload.data.document_id}` });
   }
 
   const supabase = await createServerSupabaseClient();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Bell, Check, FileUp, FolderOpen, Plus, Search, Send } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { FOLDER_LABELS, FOLDER_TYPES } from "@/lib/constants";
@@ -19,9 +20,14 @@ export function AccountantDashboard({
   requests: DocumentRequest[];
   dataSourceLabel: string;
 }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [selectedClientId, setSelectedClientId] = useState(clients[0]?.id);
   const [message, setMessage] = useState(`${dataSourceLabel} verisi aktif.`);
+  const [pending, setPending] = useState<string | null>(null);
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientEmail, setNewClientEmail] = useState("");
+  const [newClientTaxNumber, setNewClientTaxNumber] = useState("");
   const selectedClient = clients.find((client) => client.id === selectedClientId) || clients[0];
   const filteredClients = useMemo(
     () => clients.filter((client) => client.companyName.toLocaleLowerCase("tr-TR").includes(query.toLocaleLowerCase("tr-TR"))),
@@ -30,8 +36,129 @@ export function AccountantDashboard({
   const clientDocuments = documents.filter((document) => document.clientId === selectedClient?.id);
   const clientRequests = requests.filter((request) => request.clientId === selectedClient?.id);
 
-  function handleActionSubmit(action: string) {
-    setMessage(`${action} kaydi hazirlandi. Yazma endpointi ${dataSourceLabel} backendine baglanacak.`);
+  async function runAction(action: string, task: () => Promise<void>) {
+    setPending(action);
+    setMessage(`${action} isleniyor...`);
+
+    try {
+      await task();
+      setMessage(`${action} tamamlandi.`);
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : `${action} basarisiz.`);
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function createClient() {
+    await runAction("Mukellef ekleme", async () => {
+      const response = await fetch("/api/clients", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          company_name: newClientName,
+          contact_email: newClientEmail || undefined,
+          tax_number: newClientTaxNumber || undefined,
+        }),
+      });
+      const payload = (await response.json()) as { error?: string; client_id?: string };
+
+      if (!response.ok) {
+        throw new Error(readApiError(payload.error) || "Mukellef eklenemedi");
+      }
+
+      setNewClientName("");
+      setNewClientEmail("");
+      setNewClientTaxNumber("");
+      if (payload.client_id) setSelectedClientId(payload.client_id);
+    });
+  }
+
+  async function shareDocument(form: HTMLFormElement) {
+    if (!selectedClient) return;
+
+    await runAction("Evrak paylasma", async () => {
+      const formData = new FormData(form);
+      const file = formData.get("file");
+
+      if (!(file instanceof File) || file.size === 0) {
+        throw new Error("Paylasmak icin dosya secin.");
+      }
+
+      formData.set("client_id", selectedClient.id);
+      formData.set("origin", "accountant_shared");
+      if (!String(formData.get("title") || "").trim()) {
+        formData.set("title", file.name);
+      }
+
+      const response = await fetch("/api/documents/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(readApiError(payload.error) || "Evrak paylasilamadi");
+      }
+
+      form.reset();
+    });
+  }
+
+  async function createRequest(form: HTMLFormElement) {
+    if (!selectedClient) return;
+
+    await runAction("Evrak talebi", async () => {
+      const formData = new FormData(form);
+      const response = await fetch("/api/requests", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          client_id: selectedClient.id,
+          title: formData.get("title"),
+          description: formData.get("description") || undefined,
+          folder_type: formData.get("folder_type") || "documents_photos",
+          due_at: toIsoDateTime(formData.get("due_at")),
+        }),
+      });
+      const payload = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(readApiError(payload.error) || "Talep olusturulamadi");
+      }
+
+      form.reset();
+    });
+  }
+
+  async function sendReminder(form: HTMLFormElement) {
+    if (!selectedClient) return;
+
+    await runAction("Hatirlatma", async () => {
+      const formData = new FormData(form);
+      const title = String(formData.get("title") || "");
+      const body = String(formData.get("body") || title);
+      const response = await fetch("/api/notifications/send", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          client_id: selectedClient.id,
+          title,
+          body,
+          category: "reminder",
+          action_url: "/client",
+          due_at: toIsoDateTime(formData.get("due_at")),
+        }),
+      });
+      const payload = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(readApiError(payload.error) || "Hatirlatma gonderilemedi");
+      }
+
+      form.reset();
+    });
   }
 
   return (
@@ -77,10 +204,42 @@ export function AccountantDashboard({
                 Vergi no {selectedClient?.taxNumber} · {selectedClient?.contactName}
               </p>
             </div>
-            <button type="button" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-slate-900 px-3 text-sm font-semibold text-white">
-              <Plus aria-hidden="true" size={16} />
-              Mukellef ekle
-            </button>
+            <form
+              className="grid gap-2 sm:grid-cols-[150px_170px_120px_auto]"
+              onSubmit={(event) => {
+                event.preventDefault();
+                createClient();
+              }}
+            >
+              <input
+                value={newClientName}
+                onChange={(event) => setNewClientName(event.target.value)}
+                required
+                className="min-h-10 rounded-md border border-slate-200 px-3 text-sm"
+                placeholder="Sirket adi"
+              />
+              <input
+                value={newClientEmail}
+                onChange={(event) => setNewClientEmail(event.target.value)}
+                type="email"
+                className="min-h-10 rounded-md border border-slate-200 px-3 text-sm"
+                placeholder="E-posta"
+              />
+              <input
+                value={newClientTaxNumber}
+                onChange={(event) => setNewClientTaxNumber(event.target.value)}
+                className="min-h-10 rounded-md border border-slate-200 px-3 text-sm"
+                placeholder="Vergi no"
+              />
+              <button
+                type="submit"
+                disabled={pending === "Mukellef ekleme"}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-slate-900 px-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-60"
+              >
+                <Plus aria-hidden="true" size={16} />
+                Mukellef ekle
+              </button>
+            </form>
           </div>
           <p className="rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-700">{message}</p>
           <div className="grid gap-3 md:grid-cols-3">
@@ -88,19 +247,25 @@ export function AccountantDashboard({
               icon={FileUp}
               title="Evrak paylas"
               button="Paylas"
-              onSubmit={() => handleActionSubmit("Evrak paylasma")}
+              mode="file"
+              pending={pending === "Evrak paylasma"}
+              onSubmit={shareDocument}
             />
             <ActionPanel
               icon={Send}
               title="Evrak talebi"
               button="Talep olustur"
-              onSubmit={() => handleActionSubmit("Evrak talebi")}
+              mode="request"
+              pending={pending === "Evrak talebi"}
+              onSubmit={createRequest}
             />
             <ActionPanel
               icon={Bell}
               title="Hatirlatma"
               button="Gonder"
-              onSubmit={() => handleActionSubmit("Hatirlatma")}
+              mode="reminder"
+              pending={pending === "Hatirlatma"}
+              onSubmit={sendReminder}
             />
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
@@ -157,36 +322,76 @@ function ActionPanel({
   icon: Icon,
   title,
   button,
+  mode,
+  pending,
   onSubmit,
 }: {
   icon: LucideIcon;
   title: string;
   button: string;
-  onSubmit: () => void;
+  mode: "file" | "request" | "reminder";
+  pending: boolean;
+  onSubmit: (form: HTMLFormElement) => void;
 }) {
   return (
     <form
       className="space-y-2 rounded-lg border border-slate-200 p-3"
       onSubmit={(event) => {
         event.preventDefault();
-        onSubmit();
+        onSubmit(event.currentTarget);
       }}
     >
       <h2 className="flex items-center gap-2 text-sm font-semibold">
         <Icon aria-hidden="true" size={16} />
         {title}
       </h2>
-      <input className="min-h-10 w-full rounded-md border border-slate-200 px-3 text-sm" placeholder="Baslik" />
-      <select className="min-h-10 w-full rounded-md border border-slate-200 px-3 text-sm" defaultValue="documents_photos">
+      <input name="title" className="min-h-10 w-full rounded-md border border-slate-200 px-3 text-sm" placeholder="Baslik" required />
+      {mode === "file" && (
+        <input
+          name="file"
+          type="file"
+          className="min-h-10 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+          accept="application/pdf,image/jpeg,image/png,image/webp,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+          required
+        />
+      )}
+      {mode !== "file" && (
+        <textarea
+          name={mode === "reminder" ? "body" : "description"}
+          className="min-h-20 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+          placeholder={mode === "reminder" ? "Mesaj" : "Aciklama"}
+        />
+      )}
+      <select name="folder_type" className="min-h-10 w-full rounded-md border border-slate-200 px-3 text-sm" defaultValue="documents_photos">
         {FOLDER_TYPES.map((folderType) => (
           <option key={folderType} value={folderType}>
             {FOLDER_LABELS[folderType]}
           </option>
         ))}
       </select>
-      <button type="submit" className="min-h-10 w-full rounded-md bg-cyan-800 px-3 text-sm font-semibold text-white">
-        {button}
+      {mode !== "file" && (
+        <input name="due_at" type="date" className="min-h-10 w-full rounded-md border border-slate-200 px-3 text-sm" />
+      )}
+      <button
+        type="submit"
+        disabled={pending}
+        className="min-h-10 w-full rounded-md bg-cyan-800 px-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-60"
+      >
+        {pending ? "Isleniyor" : button}
       </button>
     </form>
   );
+}
+
+function toIsoDateTime(value: FormDataEntryValue | null) {
+  if (!value) return undefined;
+  const date = String(value);
+  if (!date) return undefined;
+  return new Date(`${date}T09:00:00.000Z`).toISOString();
+}
+
+function readApiError(error: unknown) {
+  if (!error) return undefined;
+  if (typeof error === "string") return error;
+  return "Islem dogrulanamadi.";
 }

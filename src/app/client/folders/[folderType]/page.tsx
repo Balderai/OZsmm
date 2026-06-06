@@ -5,7 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import { DocumentList } from "@/components/document-list";
 import { UploadDialog } from "@/components/upload-dialog";
 import { FOLDER_LABELS, FOLDER_TYPES } from "@/lib/constants";
-import { getDefaultClient } from "@/lib/data/mock";
+import { getDefaultClientCompany } from "@/lib/data/clients";
 import { listClientDocuments } from "@/lib/data/documents";
 import type { FolderType } from "@/types/domain";
 
@@ -17,7 +17,7 @@ export default async function FolderPage({ params }: { params: Promise<{ folderT
   }
 
   const typedFolder = folderType as FolderType;
-  const client = getDefaultClient();
+  const client = await getDefaultClientCompany();
   const documents = await listClientDocuments({ clientId: client.id, folderType: typedFolder });
 
   return (
@@ -31,7 +31,7 @@ export default async function FolderPage({ params }: { params: Promise<{ folderT
           <h1 className="text-2xl font-semibold">{FOLDER_LABELS[typedFolder]}</h1>
           <p className="mt-1 text-sm text-slate-600">{client.companyName} icin paylasilan ve yuklenen evraklar.</p>
         </section>
-        {typedFolder === "documents_photos" && <UploadDialog />}
+        {typedFolder === "documents_photos" && <UploadDialog clientId={client.id} folderType={typedFolder} />}
         <DocumentList documents={documents} />
       </div>
     </AppShell>

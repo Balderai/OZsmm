@@ -49,6 +49,15 @@ export async function listClients() {
   }));
 }
 
+export async function getDefaultClientCompany() {
+  if (appConfig.mockMode) {
+    return mockClients[0];
+  }
+
+  const clients = await listClients();
+  return clients[0] ?? mockClients[0];
+}
+
 export async function getAccountantMetrics() {
   if (appConfig.mockMode) {
     return getDashboardMetrics();

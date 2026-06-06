@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import type webpush from "web-push";
 import { appConfig } from "@/lib/config";
+import { appwriteTables, hasAppwriteServerConfig } from "@/lib/appwrite/tables";
 import { sendPush } from "@/lib/push";
+import { createAppwriteServices } from "@/lib/appwrite/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { notificationPayloadSchema } from "@/lib/validators";
+
+const demoFirmId = "11111111-1111-4111-8111-111111111111";
 
 export async function POST(request: Request) {
   const payload = notificationPayloadSchema.safeParse(await request.json());
@@ -15,6 +19,26 @@ export async function POST(request: Request) {
 
   if (appConfig.mockMode) {
     return NextResponse.json({ ok: true, mode: "mock", in_app: 1, push_sent: 0, push_failed: 0 });
+  }
+
+  if (hasAppwriteServerConfig()) {
+    const { tables } = createAppwriteServices();
+    await tables.createRow({
+      databaseId: appConfig.appwriteDatabaseId,
+      tableId: appwriteTables.notifications,
+      rowId: crypto.randomUUID(),
+      data: stripUndefined({
+        firm_id: demoFirmId,
+        client_id: payload.data.client_id,
+        category: payload.data.category,
+        title: payload.data.title,
+        body: payload.data.body,
+        action_url: payload.data.action_url,
+        due_at: payload.data.due_at,
+      }),
+    });
+
+    return NextResponse.json({ ok: true, in_app: 1, push_sent: 0, push_failed: 0 });
   }
 
   const supabase = await createServerSupabaseClient();
@@ -108,4 +132,8 @@ export async function POST(request: Request) {
   });
 
   return NextResponse.json({ ok: true, in_app: notifications.length, push_sent: pushSent, push_failed: pushFailed });
+}
+
+function stripUndefined<T extends Record<string, unknown>>(input: T) {
+  return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
 }

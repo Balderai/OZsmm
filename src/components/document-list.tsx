@@ -1,4 +1,5 @@
-import { Download, Eye, FileText } from "lucide-react";
+import { Eye, FileText } from "lucide-react";
+import { DocumentOpenButton } from "@/components/document-open-button";
 import { FOLDER_LABELS } from "@/lib/constants";
 import type { PortalDocument } from "@/types/domain";
 
@@ -26,13 +27,7 @@ export function DocumentList({ documents }: { documents: PortalDocument[] }) {
               {document.viewedByClient ? "Okundu" : "Okunmadi"}
             </span>
           )}
-          <button
-            type="button"
-            aria-label={`${document.title} icin indirme baglantisi olustur`}
-            className="grid size-10 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100"
-          >
-            <Download aria-hidden="true" size={18} />
-          </button>
+          <DocumentOpenButton documentId={document.id} title={document.title} />
         </article>
       ))}
     </div>
