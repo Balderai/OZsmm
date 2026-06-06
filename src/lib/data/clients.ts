@@ -1,3 +1,4 @@
+import { Query } from "node-appwrite";
 import { appConfig } from "@/lib/config";
 import { appwriteTables, hasAppwriteServerConfig } from "@/lib/appwrite/tables";
 import { mockClients, getDashboardMetrics, mockDocuments } from "@/lib/data/mock";
@@ -95,11 +96,11 @@ async function listAppwriteClients(): Promise<ClientCompany[]> {
   const { rows } = await tables.listRows({
     databaseId: appConfig.appwriteDatabaseId,
     tableId: appwriteTables.clients,
+    queries: [Query.limit(100), Query.orderDesc("$createdAt")],
   });
 
   return (rows as unknown as AppwriteClientRow[])
     .filter((client) => client.is_active !== false)
-    .sort((first, second) => first.company_name.localeCompare(second.company_name, "tr"))
     .map((client) => ({
       id: client.$id,
       firmId: client.firm_id,

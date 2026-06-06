@@ -1,3 +1,4 @@
+import { Query } from "node-appwrite";
 import { appConfig } from "@/lib/config";
 import { appwriteTables, hasAppwriteServerConfig } from "@/lib/appwrite/tables";
 import { mockNotifications, mockRequests } from "@/lib/data/mock";
@@ -40,6 +41,7 @@ export async function listClientNotifications(clientId: string) {
     const { rows } = await tables.listRows({
       databaseId: appConfig.appwriteDatabaseId,
       tableId: appwriteTables.notifications,
+      queries: [Query.limit(100), Query.orderDesc("$createdAt")],
     });
 
     return (rows as unknown as AppwriteNotificationRow[])
@@ -72,6 +74,7 @@ export async function listOpenRequests(clientId?: string) {
     const { rows } = await tables.listRows({
       databaseId: appConfig.appwriteDatabaseId,
       tableId: appwriteTables.requests,
+      queries: [Query.limit(100), Query.orderDesc("$createdAt")],
     });
 
     return (rows as unknown as AppwriteRequestRow[])

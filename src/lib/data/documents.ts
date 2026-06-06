@@ -1,3 +1,4 @@
+import { Query } from "node-appwrite";
 import { appConfig } from "@/lib/config";
 import { appwriteTables, hasAppwriteServerConfig } from "@/lib/appwrite/tables";
 import { mockDocuments } from "@/lib/data/mock";
@@ -133,6 +134,7 @@ async function listAppwriteDocuments() {
   const { rows } = await tables.listRows({
     databaseId: appConfig.appwriteDatabaseId,
     tableId: appwriteTables.documents,
+    queries: [Query.limit(100), Query.orderDesc("$createdAt")],
   });
 
   return (rows as unknown as AppwriteDocumentRow[])
