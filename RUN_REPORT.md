@@ -3,6 +3,7 @@
 - Local mock mode for client and accountant routes.
 - PWA manifest, service worker, and generated app icons.
 - Supabase client setup, server/admin clients, route contracts, schema/RLS/storage/seed migrations.
+- Appwrite server client helper and setup script for database, tables, indexes, bucket, and demo rows.
 - Focused tests for storage paths, folder labels, role redirects, and notification validation.
 
 ## Files changed
@@ -14,6 +15,7 @@
 - `public/icon-192.png`
 - `public/icon-512.png`
 - `supabase/migrations`
+- `scripts/setup-appwrite.mjs`
 - `.env.example`
 - `README.md`
 
@@ -37,15 +39,19 @@ Browser QA notes:
 - DOM overflow check reported no horizontal overflow on tested viewports.
 - Browser console error check returned no errors.
 - Manifest served at `/manifest.webmanifest` with standalone display and two PNG icons.
+- `npm run appwrite:setup` created Appwrite database resources successfully.
 
 ## Supabase/Vercel notes
 - Real credentials are still required.
 - Storage bucket is private and created by `0003_storage_policies.sql`.
 - Helper RLS functions live in `app_private` rather than public schema.
+- Appwrite project `ozsmm` database and `client-documents` bucket are configured through `.env.local`.
+- Appwrite API key is local-only and intentionally not committed.
 
 ## What did not work
 - Real Supabase credentials are not present, so RLS/storage/security QA against real users is not yet run.
 - Full Web Push delivery is not verified because VAPID keys and HTTPS/install context are still required.
+- Appwrite UI data adapter is not switched on yet; the visible app still runs in mock mode.
 
 ## Follow-up recommendations
 - Add real Supabase Auth screens after project credentials are available.

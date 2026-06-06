@@ -37,6 +37,32 @@ Mock mode includes:
 6. Set env vars in `.env.local`
 7. Set `MOCK_MODE=false`
 
+## Appwrite Mode
+
+Appwrite can be used as an alternative backend integration point.
+
+1. Create an Appwrite Cloud project
+2. Add a Web platform for `localhost`
+3. Create a server API key with database, table, row, bucket, file, and user scopes
+4. Copy `.env.example` to `.env.local`
+5. Set:
+
+```env
+NEXT_PUBLIC_APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1
+NEXT_PUBLIC_APPWRITE_PROJECT_ID=<project_id>
+APPWRITE_API_KEY=<server_api_key>
+APPWRITE_DATABASE_ID=ozsmm
+APPWRITE_BUCKET_ID=client-documents
+```
+
+6. Run:
+
+```powershell
+npm run appwrite:setup
+```
+
+The setup script creates the `ozsmm` database, core tables, indexes, demo firm/client rows, and the private `client-documents` bucket. The API key must stay server-side and must not be committed.
+
 Required local env:
 
 ```env
@@ -89,6 +115,12 @@ The service worker is `public/sw.js`. Push send logic runs server-side through `
 - `POST /api/notifications/subscribe`
 - `POST /api/notifications/unsubscribe`
 - `POST /api/notifications/send`
+
+## Backend Notes
+
+- Supabase migrations are kept under `supabase/migrations`.
+- Appwrite setup is kept in `scripts/setup-appwrite.mjs`.
+- Local demo UI still defaults to `MOCK_MODE=true`.
 
 ## Verification
 
