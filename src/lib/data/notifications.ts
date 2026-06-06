@@ -31,7 +31,7 @@ type AppwriteNotificationRow = {
   read_at?: string;
 };
 
-export async function listClientNotifications(clientId: string) {
+export async function listClientNotifications(clientId: string, firmId?: string) {
   if (appConfig.mockMode) {
     return mockNotifications.filter((notification) => notification.clientId === clientId);
   }
@@ -41,7 +41,7 @@ export async function listClientNotifications(clientId: string) {
     const { rows } = await tables.listRows({
       databaseId: appConfig.appwriteDatabaseId,
       tableId: appwriteTables.notifications,
-      queries: [Query.limit(100), Query.orderDesc("$createdAt")],
+      queries: [...firmQuery(firmId), Query.limit(100), Query.orderDesc("$createdAt")],
     });
 
     return (rows as unknown as AppwriteNotificationRow[])
@@ -64,7 +64,7 @@ export async function listClientNotifications(clientId: string) {
   return [];
 }
 
-export async function listOpenRequests(clientId?: string) {
+export async function listOpenRequests(clientId?: string, firmId?: string) {
   if (appConfig.mockMode) {
     return mockRequests.filter((request) => request.status === "open" && (!clientId || request.clientId === clientId));
   }
@@ -74,7 +74,7 @@ export async function listOpenRequests(clientId?: string) {
     const { rows } = await tables.listRows({
       databaseId: appConfig.appwriteDatabaseId,
       tableId: appwriteTables.requests,
-      queries: [Query.limit(100), Query.orderDesc("$createdAt")],
+      queries: [...firmQuery(firmId), Query.limit(100), Query.orderDesc("$createdAt")],
     });
 
     return (rows as unknown as AppwriteRequestRow[])
@@ -83,6 +83,10 @@ export async function listOpenRequests(clientId?: string) {
   }
 
   return [];
+}
+
+function firmQuery(firmId?: string) {
+  return firmId ? [Query.equal("firm_id", firmId)] : [];
 }
 
 function toDocumentRequest(request: AppwriteRequestRow): DocumentRequest {

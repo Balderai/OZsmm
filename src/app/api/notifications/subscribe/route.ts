@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { appConfig } from "@/lib/config";
+import { appwriteTables, hasAppwriteServerConfig } from "@/lib/appwrite/tables";
+import { createAppwriteServices } from "@/lib/appwrite/server";
+import { authErrorResponse, requirePortalSessionFromRequest } from "@/lib/auth/appwrite";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { pushSubscriptionSchema } from "@/lib/validators";
@@ -13,6 +16,33 @@ export async function POST(request: Request) {
 
   if (appConfig.mockMode) {
     return NextResponse.json({ ok: true, mode: "mock" });
+  }
+
+  if (hasAppwriteServerConfig()) {
+    let session;
+    try {
+      session = await requirePortalSessionFromRequest(request);
+    } catch (error) {
+      return authErrorResponse(error);
+    }
+
+    const { tables } = createAppwriteServices();
+    await tables.upsertRow({
+      databaseId: appConfig.appwriteDatabaseId,
+      tableId: appwriteTables.pushSubscriptions,
+      rowId: crypto.randomUUID(),
+      data: {
+        firm_id: session.profile.firmId,
+        user_id: session.user.id,
+        endpoint: payload.data.endpoint,
+        p256dh: payload.data.keys.p256dh,
+        auth: payload.data.keys.auth,
+        user_agent: request.headers.get("user-agent"),
+        is_active: true,
+      },
+    });
+
+    return NextResponse.json({ ok: true });
   }
 
   const supabase = await createServerSupabaseClient();

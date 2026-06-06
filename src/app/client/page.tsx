@@ -1,28 +1,44 @@
+import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { FolderCard } from "@/components/folder-card";
 import { NotificationBell } from "@/components/notification-bell";
 import { RequestList } from "@/components/request-list";
 import { UploadDialog } from "@/components/upload-dialog";
+import { requirePortalSession } from "@/lib/auth/appwrite";
 import { FOLDER_TYPES } from "@/lib/constants";
 import { appConfig } from "@/lib/config";
 import { listClientDocuments } from "@/lib/data/documents";
-import { getDefaultClientCompany } from "@/lib/data/clients";
+import { getClientCompany, getDefaultClientCompany } from "@/lib/data/clients";
 import { mockFirm } from "@/lib/data/mock";
 import { listClientNotifications, listOpenRequests } from "@/lib/data/notifications";
 
 export default async function ClientPage() {
-  const client = await getDefaultClientCompany();
+  const session = appConfig.mockMode ? null : await requirePortalSession("client");
+
+  if (!appConfig.mockMode && !session) {
+    redirect("/login");
+  }
+
+  const membership = session?.memberships[0];
+  const client = membership
+    ? await getClientCompany(membership.clientId, membership.firmId)
+    : await getDefaultClientCompany(session?.profile.firmId);
+
+  if (!client) {
+    redirect("/login");
+  }
+
   const [notifications, requests, documents] = await Promise.all([
-    listClientNotifications(client.id),
-    listOpenRequests(client.id),
-    listClientDocuments({ clientId: client.id }),
+    listClientNotifications(client.id, client.firmId),
+    listOpenRequests(client.id, client.firmId),
+    listClientDocuments({ clientId: client.id, firmId: client.firmId }),
   ]);
   const folderCounts = Object.fromEntries(
     FOLDER_TYPES.map((folderType) => [folderType, documents.filter((document) => document.folderType === folderType).length]),
   ) as Record<(typeof FOLDER_TYPES)[number], number>;
 
   return (
-    <AppShell activeRole="client" eyebrow="Mukellef portal">
+    <AppShell activeRole="client" eyebrow="Mukellef portal" profile={session?.profile}>
       <div className="mx-auto max-w-3xl space-y-4">
         <section className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <div className="min-w-0">

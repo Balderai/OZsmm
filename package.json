@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "appwrite:setup": "node scripts/setup-appwrite.mjs"
+    "appwrite:setup": "node scripts/setup-appwrite.mjs",
+    "appwrite:cleanup-demo": "node scripts/setup-appwrite.mjs --cleanup-demo-only"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

@@ -32,6 +32,14 @@ export type Profile = {
   isActive: boolean;
 };
 
+export type ClientMembership = {
+  id: string;
+  firmId: string;
+  clientId: string;
+  userId: string;
+  isActive: boolean;
+};
+
 export type ClientCompany = {
   id: string;
   firmId: string;

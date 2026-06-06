@@ -27,6 +27,8 @@ export function AccountantDashboard({
   const [pending, setPending] = useState<string | null>(null);
   const [newClientName, setNewClientName] = useState("");
   const [newClientEmail, setNewClientEmail] = useState("");
+  const [newClientContactName, setNewClientContactName] = useState("");
+  const [newClientPassword, setNewClientPassword] = useState("");
   const [newClientTaxNumber, setNewClientTaxNumber] = useState("");
   const selectedClient = clients.find((client) => client.id === selectedClientId) || clients[0];
   const filteredClients = useMemo(
@@ -59,6 +61,8 @@ export function AccountantDashboard({
         body: JSON.stringify({
           company_name: newClientName,
           contact_email: newClientEmail || undefined,
+          contact_name: newClientContactName || undefined,
+          temporary_password: newClientPassword || undefined,
           tax_number: newClientTaxNumber || undefined,
         }),
       });
@@ -70,6 +74,8 @@ export function AccountantDashboard({
 
       setNewClientName("");
       setNewClientEmail("");
+      setNewClientContactName("");
+      setNewClientPassword("");
       setNewClientTaxNumber("");
       if (payload.client_id) setSelectedClientId(payload.client_id);
     });
@@ -201,11 +207,11 @@ export function AccountantDashboard({
             <div>
               <h1 className="text-xl font-semibold">{selectedClient?.companyName}</h1>
               <p className="mt-1 text-sm text-slate-500">
-                Vergi no {selectedClient?.taxNumber} · {selectedClient?.contactName}
+                {selectedClient ? `Vergi no ${selectedClient.taxNumber || "-"} - ${selectedClient.contactName || "Yetkili yok"}` : "Henuz mukellef yok"}
               </p>
             </div>
             <form
-              className="grid gap-2 sm:grid-cols-[150px_170px_120px_auto]"
+              className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[150px_150px_190px_130px_120px_auto]"
               onSubmit={(event) => {
                 event.preventDefault();
                 createClient();
@@ -219,11 +225,27 @@ export function AccountantDashboard({
                 placeholder="Sirket adi"
               />
               <input
+                value={newClientContactName}
+                onChange={(event) => setNewClientContactName(event.target.value)}
+                className="min-h-10 rounded-md border border-slate-200 px-3 text-sm"
+                placeholder="Yetkili ad"
+              />
+              <input
                 value={newClientEmail}
                 onChange={(event) => setNewClientEmail(event.target.value)}
                 type="email"
+                required
                 className="min-h-10 rounded-md border border-slate-200 px-3 text-sm"
                 placeholder="E-posta"
+              />
+              <input
+                value={newClientPassword}
+                onChange={(event) => setNewClientPassword(event.target.value)}
+                type="password"
+                required
+                minLength={8}
+                className="min-h-10 rounded-md border border-slate-200 px-3 text-sm"
+                placeholder="Gecici sifre"
               />
               <input
                 value={newClientTaxNumber}

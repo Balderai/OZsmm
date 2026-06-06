@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/app-shell";
-import { RoleGate } from "@/components/role-gate";
+import { LoginForm } from "@/components/login-form";
 import { appConfig } from "@/lib/config";
 
 export default function LoginPage() {
@@ -9,10 +9,10 @@ export default function LoginPage() {
         <div>
           <h1 className="text-2xl font-semibold">{appConfig.appName}</h1>
           <p className="mt-2 text-sm text-slate-600">
-            Mock mode&apos;da rol secerek akisi test edebilirsiniz. Supabase modunda email/sifre veya magic link buraya baglanacak.
+            Muhasebeci veya mukellef hesabi ile portala giris yapin.
           </p>
         </div>
-        <RoleGate />
+        <LoginForm />
       </div>
     </AppShell>
   );

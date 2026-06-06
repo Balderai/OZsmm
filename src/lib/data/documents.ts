@@ -26,7 +26,7 @@ type AppwriteDocumentRow = {
   due_at?: string;
 };
 
-export async function listClientDocuments(params: { clientId: string; folderType?: FolderType }) {
+export async function listClientDocuments(params: { clientId: string; folderType?: FolderType; firmId?: string }) {
   if (appConfig.mockMode) {
     return mockDocuments.filter(
       (document) =>
@@ -77,13 +77,13 @@ export async function listClientDocuments(params: { clientId: string; folderType
   }));
 }
 
-export async function listDocuments() {
+export async function listDocuments(params?: { firmId?: string }) {
   if (appConfig.mockMode) {
     return mockDocuments;
   }
 
   if (hasAppwriteServerConfig()) {
-    return listAppwriteDocuments();
+    return listAppwriteDocuments(params);
   }
 
   const supabase = await createServerSupabaseClient();
@@ -118,8 +118,8 @@ export async function listDocuments() {
   }));
 }
 
-async function listAppwriteClientDocuments(params: { clientId: string; folderType?: FolderType }) {
-  const documents = await listAppwriteDocuments();
+async function listAppwriteClientDocuments(params: { clientId: string; folderType?: FolderType; firmId?: string }) {
+  const documents = await listAppwriteDocuments({ firmId: params.firmId });
 
   return documents.filter(
     (document) =>
@@ -129,12 +129,12 @@ async function listAppwriteClientDocuments(params: { clientId: string; folderTyp
   );
 }
 
-async function listAppwriteDocuments() {
+async function listAppwriteDocuments(params?: { firmId?: string }) {
   const { tables } = createAppwriteServices();
   const { rows } = await tables.listRows({
     databaseId: appConfig.appwriteDatabaseId,
     tableId: appwriteTables.documents,
-    queries: [Query.limit(100), Query.orderDesc("$createdAt")],
+    queries: [...firmQuery(params?.firmId), Query.limit(100), Query.orderDesc("$createdAt")],
   });
 
   return (rows as unknown as AppwriteDocumentRow[])
@@ -162,4 +162,8 @@ async function listAppwriteDocuments() {
       dueAt: document.due_at,
       createdAt: document.$createdAt || new Date().toISOString(),
     }));
+}
+
+function firmQuery(firmId?: string) {
+  return firmId ? [Query.equal("firm_id", firmId)] : [];
 }

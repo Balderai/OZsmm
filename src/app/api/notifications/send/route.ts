@@ -4,11 +4,10 @@ import { appConfig } from "@/lib/config";
 import { appwriteTables, hasAppwriteServerConfig } from "@/lib/appwrite/tables";
 import { sendPush } from "@/lib/push";
 import { createAppwriteServices } from "@/lib/appwrite/server";
+import { authErrorResponse, requirePortalSessionFromRequest } from "@/lib/auth/appwrite";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { notificationPayloadSchema } from "@/lib/validators";
-
-const demoFirmId = "11111111-1111-4111-8111-111111111111";
 
 export async function POST(request: Request) {
   const payload = notificationPayloadSchema.safeParse(await request.json());
@@ -22,19 +21,37 @@ export async function POST(request: Request) {
   }
 
   if (hasAppwriteServerConfig()) {
+    let session;
+    try {
+      session = await requirePortalSessionFromRequest(request, "accountant");
+    } catch (error) {
+      return authErrorResponse(error);
+    }
+
     const { tables } = createAppwriteServices();
+    const client = await tables.getRow({
+      databaseId: appConfig.appwriteDatabaseId,
+      tableId: appwriteTables.clients,
+      rowId: payload.data.client_id,
+    });
+
+    if (client.firm_id !== session.profile.firmId || client.is_active === false) {
+      return NextResponse.json({ error: "Mukellef bu firmaya ait degil." }, { status: 403 });
+    }
+
     await tables.createRow({
       databaseId: appConfig.appwriteDatabaseId,
       tableId: appwriteTables.notifications,
       rowId: crypto.randomUUID(),
       data: stripUndefined({
-        firm_id: demoFirmId,
+        firm_id: session.profile.firmId,
         client_id: payload.data.client_id,
         category: payload.data.category,
         title: payload.data.title,
         body: payload.data.body,
         action_url: payload.data.action_url,
         due_at: payload.data.due_at,
+        created_by: session.user.id,
       }),
     });
 

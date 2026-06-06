@@ -38,6 +38,7 @@ export const createClientPayloadSchema = z.object({
   contact_name: z.string().max(140).optional(),
   contact_email: z.string().email().optional(),
   contact_phone: z.string().max(40).optional(),
+  temporary_password: z.string().min(8).max(256).optional(),
 });
 
 export const createRequestPayloadSchema = z.object({
@@ -46,4 +47,9 @@ export const createRequestPayloadSchema = z.object({
   description: z.string().max(1000).optional(),
   folder_type: z.enum(FOLDER_TYPES).default("documents_photos"),
   due_at: z.string().datetime().optional(),
+});
+
+export const loginPayloadSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8).max(256),
 });

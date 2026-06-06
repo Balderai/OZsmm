@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { appConfig } from "@/lib/config";
-import { hasAppwriteServerConfig } from "@/lib/appwrite/tables";
+import { appwriteTables, hasAppwriteServerConfig } from "@/lib/appwrite/tables";
+import { createAppwriteServices } from "@/lib/appwrite/server";
+import { assertClientAccess, authErrorResponse, requirePortalSessionFromRequest } from "@/lib/auth/appwrite";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { signedUrlPayloadSchema } from "@/lib/validators";
@@ -25,6 +27,30 @@ export async function POST(request: Request) {
   }
 
   if (hasAppwriteServerConfig()) {
+    let session;
+    try {
+      session = await requirePortalSessionFromRequest(request);
+    } catch (error) {
+      return authErrorResponse(error);
+    }
+
+    const { tables } = createAppwriteServices();
+    const document = await tables.getRow({
+      databaseId: appConfig.appwriteDatabaseId,
+      tableId: appwriteTables.documents,
+      rowId: payload.data.document_id,
+    });
+
+    if (document.status === "deleted" || document.firm_id !== session.profile.firmId) {
+      return NextResponse.json({ error: "Document not found" }, { status: 404 });
+    }
+
+    try {
+      await assertClientAccess(session, document.client_id);
+    } catch (error) {
+      return authErrorResponse(error);
+    }
+
     return NextResponse.json({ signed_url: `/api/documents/download?document_id=${payload.data.document_id}` });
   }
 

@@ -1,13 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import {
   AppwriteException,
   Client,
   Permission,
+  Query,
   Role,
   Storage,
   TablesDB,
   TablesDBIndexType,
+  Users,
 } from "node-appwrite";
 
 loadEnv(path.join(process.cwd(), ".env.local"));
@@ -18,6 +21,9 @@ const projectId = requireEnv("NEXT_PUBLIC_APPWRITE_PROJECT_ID");
 const apiKey = requireEnv("APPWRITE_API_KEY");
 const databaseId = process.env.APPWRITE_DATABASE_ID || "ozsmm";
 const bucketId = process.env.APPWRITE_BUCKET_ID || "client-documents";
+const bootstrapEmail = requireEnv("APPWRITE_BOOTSTRAP_ACCOUNTANT_EMAIL");
+const bootstrapPassword = requireEnv("APPWRITE_BOOTSTRAP_ACCOUNTANT_PASSWORD");
+const bootstrapName = process.env.APPWRITE_BOOTSTRAP_ACCOUNTANT_NAME || "Mali Musavir";
 
 const tableIds = {
   firms: process.env.APPWRITE_FIRMS_TABLE_ID || "firms",
@@ -27,11 +33,13 @@ const tableIds = {
   requests: process.env.APPWRITE_REQUESTS_TABLE_ID || "document_requests",
   notifications: process.env.APPWRITE_NOTIFICATIONS_TABLE_ID || "notifications",
   pushSubscriptions: process.env.APPWRITE_PUSH_SUBSCRIPTIONS_TABLE_ID || "push_subscriptions",
+  clientMemberships: process.env.APPWRITE_CLIENT_MEMBERSHIPS_TABLE_ID || "client_memberships",
 };
 
 const client = new Client().setEndpoint(endpoint).setProject(projectId).setKey(apiKey);
 const tables = new TablesDB(client);
 const storage = new Storage(client);
+const users = new Users(client);
 
 const tablePermissions = [
   Permission.read(Role.users()),
@@ -47,9 +55,16 @@ const seedDocumentId = "66666666-6666-4666-8666-666666666666";
 const seedUploadId = "88888888-8888-4888-8888-888888888888";
 const seedRequestId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const seedNotificationId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const cleanupOnly = process.argv.includes("--cleanup-demo-only");
 
 async function main() {
   console.log(`Appwrite project: ${projectId}`);
+  if (cleanupOnly) {
+    await cleanupDemoRows();
+    console.log("Appwrite demo cleanup complete.");
+    return;
+  }
+
   await ensureDatabase(databaseId, "OZ SMM Portal");
   await ensureBucket(bucketId, "client-documents");
   await ensureTables();
@@ -182,6 +197,16 @@ async function ensureTables() {
   ]);
   await ensureIndex(tableIds.clients, "clients_firm_company_idx", ["firm_id", "company_name"]);
 
+  await ensureTable(tableIds.clientMemberships, "Client Memberships");
+  await ensureColumns(tableIds.clientMemberships, [
+    varchar("firm_id", 64, true),
+    varchar("client_id", 64, true),
+    varchar("user_id", 64, true),
+    bool("is_active", true, true),
+  ]);
+  await ensureIndex(tableIds.clientMemberships, "memberships_user_idx", ["user_id", "is_active"]);
+  await ensureIndex(tableIds.clientMemberships, "memberships_client_idx", ["client_id", "is_active"]);
+
   await ensureTable(tableIds.documents, "Documents");
   await ensureColumns(tableIds.documents, [
     varchar("firm_id", 64, true),
@@ -281,77 +306,90 @@ async function ensureIndex(tableId, key, columns) {
 async function ensureSeedRows() {
   await upsert(tableIds.firms, seedFirmId, {
     name: process.env.NEXT_PUBLIC_FIRM_NAME || "Demo Mali Musavirlik",
-    legal_name: "Demo Mali Musavirlik Ltd.",
+    legal_name: process.env.NEXT_PUBLIC_FIRM_NAME || "Demo Mali Musavirlik",
     brand_color: "#155E75",
   });
 
-  await upsert(tableIds.clients, seedClientId, {
+  await ensureBootstrapAccountant();
+  await cleanupDemoRows();
+}
+
+async function ensureBootstrapAccountant() {
+  const existing = await users.list({ queries: [Query.equal("email", bootstrapEmail), Query.limit(1)] });
+  let user = existing.users[0];
+
+  if (!user) {
+    user = await users.create({
+      userId: randomUUID(),
+      email: bootstrapEmail,
+      password: bootstrapPassword,
+      name: bootstrapName,
+    });
+    console.log(`created bootstrap accountant ${bootstrapEmail}`);
+  } else {
+    await users.updateName({ userId: user.$id, name: bootstrapName });
+    await users.updatePassword({ userId: user.$id, password: bootstrapPassword });
+    console.log(`updated bootstrap accountant ${bootstrapEmail}`);
+  }
+
+  await upsert(tableIds.profiles, user.$id, {
     firm_id: seedFirmId,
-    company_name: "Kara Ticaret A.S.",
-    tax_number: "1234567890",
-    contact_name: "Mehmet Kara",
-    contact_email: "mehmet@example.com",
-    contact_phone: "+90 532 000 00 00",
+    role: "accountant",
+    full_name: bootstrapName,
+    email: bootstrapEmail,
     is_active: true,
   });
+}
 
-  await upsert(tableIds.clients, secondClientId, {
-    firm_id: seedFirmId,
-    company_name: "Ege Zeytin Gida",
-    tax_number: "9876543210",
-    contact_name: "Selin Ege",
-    contact_email: "selin@example.com",
-    contact_phone: "+90 533 000 00 00",
-    is_active: true,
-  });
+async function cleanupDemoRows() {
+  await deleteKnownRows(tableIds.documents, [seedDocumentId, seedUploadId]);
+  await deleteKnownRows(tableIds.requests, [seedRequestId]);
+  await deleteKnownRows(tableIds.notifications, [seedNotificationId]);
+  await deleteKnownRows(tableIds.clients, [seedClientId, secondClientId]);
 
-  await upsert(tableIds.documents, seedDocumentId, {
-    firm_id: seedFirmId,
-    client_id: seedClientId,
-    folder_type: "declarations",
-    origin: "accountant_shared",
-    title: "Appwrite Canli KDV Beyannamesi",
-    description: "Canli Appwrite verisinden gelen demo beyanname.",
-    storage_bucket: bucketId,
-    storage_path: `firm_${seedFirmId}/client_${seedClientId}/declarations/2026/06/${seedDocumentId}__appwrite-kdv.pdf`,
-    mime_type: "application/pdf",
-    file_size_bytes: 240000,
-    status: "active",
-    shared_at: "2026-06-06T18:00:00.000Z",
-  });
+  await deleteMatchingRows(tableIds.documents, (row) => isDemoText(row.title) || isDemoText(row.description));
+  await deleteMatchingRows(tableIds.requests, (row) => isDemoText(row.title) || isDemoText(row.description));
+  await deleteMatchingRows(tableIds.notifications, (row) => isDemoText(row.title) || isDemoText(row.body));
+  await deleteMatchingRows(tableIds.clients, (row) => isDemoText(row.company_name));
+  await deleteMatchingRows(tableIds.clientMemberships, (row) => row.client_id === seedClientId || row.client_id === secondClientId);
+}
 
-  await upsert(tableIds.documents, seedUploadId, {
-    firm_id: seedFirmId,
-    client_id: seedClientId,
-    folder_type: "documents_photos",
-    origin: "client_uploaded",
-    title: "Appwrite Canli Fatura Fotograf",
-    description: "Canli Appwrite verisinden gelen demo yukleme.",
-    storage_bucket: bucketId,
-    storage_path: `firm_${seedFirmId}/client_${seedClientId}/documents_photos/2026/06/${seedUploadId}__appwrite-fatura.jpg`,
-    mime_type: "image/jpeg",
-    file_size_bytes: 920000,
-    status: "active",
-  });
+async function deleteKnownRows(tableId, rowIds) {
+  for (const rowId of rowIds) {
+    await deleteRowIfExists(tableId, rowId);
+  }
+}
 
-  await upsert(tableIds.requests, seedRequestId, {
-    firm_id: seedFirmId,
-    client_id: seedClientId,
-    folder_type: "documents_photos",
-    title: "Appwrite canli satis faturalarini yukleyin",
-    description: "Bu talep Appwrite tablosundan geliyor.",
-    status: "open",
-    due_at: "2026-06-20T20:59:00.000Z",
-  });
+async function deleteMatchingRows(tableId, predicate) {
+  try {
+    const rows = await tables.listRows({
+      databaseId,
+      tableId,
+      queries: [Query.limit(500)],
+    });
 
-  await upsert(tableIds.notifications, seedNotificationId, {
-    firm_id: seedFirmId,
-    client_id: seedClientId,
-    category: "document_shared",
-    title: "Appwrite canli evrak paylasildi",
-    body: "Bu bildirim Appwrite notifications tablosundan geliyor.",
-    action_url: "/client/folders/declarations",
-  });
+    for (const row of rows.rows) {
+      if (predicate(row)) {
+        await deleteRowIfExists(tableId, row.$id);
+      }
+    }
+  } catch (error) {
+    if (!isMissing(error)) throw error;
+  }
+}
+
+async function deleteRowIfExists(tableId, rowId) {
+  try {
+    await tables.deleteRow({ databaseId, tableId, rowId });
+    console.log(`deleted ${tableId}.${rowId}`);
+  } catch (error) {
+    if (!isMissing(error)) throw error;
+  }
+}
+
+function isDemoText(value) {
+  if (!value) return false;
+  return /smoke|live smoke|appwrite canli|appwrite canlı|kara ticaret|ege zeytin/i.test(String(value));
 }
 
 async function upsert(tableId, rowId, data) {

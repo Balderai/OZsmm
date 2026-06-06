@@ -11,7 +11,9 @@ export const appConfig = {
   appwriteBucketId: process.env.APPWRITE_BUCKET_ID || "client-documents",
 };
 
-export function assertServerSecret(name: "SUPABASE_SERVICE_ROLE_KEY" | "VAPID_PRIVATE_KEY" | "APPWRITE_API_KEY") {
+export function assertServerSecret(
+  name: "SUPABASE_SERVICE_ROLE_KEY" | "VAPID_PRIVATE_KEY" | "APPWRITE_API_KEY" | "APPWRITE_BOOTSTRAP_ACCOUNTANT_PASSWORD",
+) {
   const value = process.env[name];
 
   if (!value) {

@@ -8,6 +8,7 @@ export const appwriteTables = {
   requests: process.env.APPWRITE_REQUESTS_TABLE_ID || "document_requests",
   notifications: process.env.APPWRITE_NOTIFICATIONS_TABLE_ID || "notifications",
   pushSubscriptions: process.env.APPWRITE_PUSH_SUBSCRIPTIONS_TABLE_ID || "push_subscriptions",
+  clientMemberships: process.env.APPWRITE_CLIENT_MEMBERSHIPS_TABLE_ID || "client_memberships",
 };
 
 export function hasAppwriteServerConfig() {

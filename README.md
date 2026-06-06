@@ -43,7 +43,7 @@ Appwrite can be used as an alternative backend integration point.
 
 1. Create an Appwrite Cloud project
 2. Add a Web platform for `localhost`
-3. Create a server API key with database, table, row, bucket, file, and user scopes
+3. Create a server API key with database, table, row, bucket, file, user, and session scopes
 4. Copy `.env.example` to `.env.local`
 5. Set:
 
@@ -53,6 +53,10 @@ NEXT_PUBLIC_APPWRITE_PROJECT_ID=<project_id>
 APPWRITE_API_KEY=<server_api_key>
 APPWRITE_DATABASE_ID=ozsmm
 APPWRITE_BUCKET_ID=client-documents
+APPWRITE_CLIENT_MEMBERSHIPS_TABLE_ID=client_memberships
+APPWRITE_BOOTSTRAP_ACCOUNTANT_EMAIL=<accountant_email>
+APPWRITE_BOOTSTRAP_ACCOUNTANT_PASSWORD=<temporary_password>
+APPWRITE_BOOTSTRAP_ACCOUNTANT_NAME=<accountant_name>
 ```
 
 6. Run:
@@ -61,7 +65,13 @@ APPWRITE_BUCKET_ID=client-documents
 npm run appwrite:setup
 ```
 
-The setup script creates the `ozsmm` database, core tables, indexes, demo firm/client rows, and the private `client-documents` bucket. The API key must stay server-side and must not be committed.
+The setup script creates the `ozsmm` database, core tables, indexes, the firm row, the bootstrap accountant user/profile, and the private `client-documents` bucket. It also removes old Smoke, Live Smoke, and Appwrite Canli demo rows. The API key and bootstrap password must stay server-side and must not be committed.
+
+To clean demo rows again without recreating tables:
+
+```powershell
+npm run appwrite:cleanup-demo
+```
 
 Required local env:
 
@@ -93,6 +103,15 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY=<public vapid key>
 VAPID_PRIVATE_KEY=<private vapid key>
 VAPID_SUBJECT=mailto:<firm email>
 MOCK_MODE=false
+NEXT_PUBLIC_APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1
+NEXT_PUBLIC_APPWRITE_PROJECT_ID=<appwrite_project_id>
+APPWRITE_API_KEY=<server_api_key>
+APPWRITE_DATABASE_ID=ozsmm
+APPWRITE_BUCKET_ID=client-documents
+APPWRITE_CLIENT_MEMBERSHIPS_TABLE_ID=client_memberships
+APPWRITE_BOOTSTRAP_ACCOUNTANT_EMAIL=<accountant_email>
+APPWRITE_BOOTSTRAP_ACCOUNTANT_PASSWORD=<temporary_password>
+APPWRITE_BOOTSTRAP_ACCOUNTANT_NAME=<accountant_name>
 ```
 
 ## PWA Push Notes
@@ -106,10 +125,15 @@ The service worker is `public/sw.js`. Push send logic runs server-side through `
 - `/client` - client portal home
 - `/client/folders/[folderType]` - one of `declarations`, `accruals`, `documents_photos`
 - `/accountant` - accountant dashboard
-- `/login` - mock login placeholder and real Supabase auth attachment point
+- `/login` - Appwrite email/password login
 
 ## API Contracts
 
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
+- `POST /api/clients`
+- `POST /api/requests`
 - `POST /api/documents/upload`
 - `POST /api/documents/signed-url`
 - `POST /api/notifications/subscribe`
@@ -120,7 +144,7 @@ The service worker is `public/sw.js`. Push send logic runs server-side through `
 
 - Supabase migrations are kept under `supabase/migrations`.
 - Appwrite setup is kept in `scripts/setup-appwrite.mjs`.
-- Local demo UI still defaults to `MOCK_MODE=true`.
+- Local demo UI still defaults to `MOCK_MODE=true`; real Appwrite auth is active with `MOCK_MODE=false`.
 
 ## Verification
 
@@ -145,6 +169,6 @@ Check that the client sees exactly three folders:
 ## Known Limits In V1
 
 - Real Supabase credentials are not included.
-- Supabase Auth UI is a placeholder so local mock mode stays simple.
+- Appwrite email/password auth is wired for server-rendered portal routes and mutation APIs.
 - Push can be fully verified only after VAPID keys and HTTPS/local install context are available.
 - No GIB, e-signature, payment, WhatsApp, OCR, native app, or accounting package integration is included.

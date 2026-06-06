@@ -18,21 +18,27 @@ type AppwriteClientRow = {
   is_active?: boolean;
 };
 
-export async function listClients() {
+export async function listClients(firmId?: string) {
   if (appConfig.mockMode) {
     return mockClients;
   }
 
   if (hasAppwriteServerConfig()) {
-    return listAppwriteClients();
+    return listAppwriteClients(firmId);
   }
 
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("clients")
     .select("*")
     .eq("is_active", true)
     .order("company_name", { ascending: true });
+
+  if (firmId) {
+    query = query.eq("firm_id", firmId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw error;
@@ -50,28 +56,38 @@ export async function listClients() {
   }));
 }
 
-export async function getDefaultClientCompany() {
+export async function getDefaultClientCompany(firmId?: string) {
   if (appConfig.mockMode) {
     return mockClients[0];
   }
 
-  const clients = await listClients();
+  const clients = await listClients(firmId);
   return clients[0] ?? mockClients[0];
 }
 
-export async function getAccountantMetrics() {
+export async function getClientCompany(clientId: string, firmId?: string) {
+  if (appConfig.mockMode) {
+    return mockClients.find((client) => client.id === clientId) ?? null;
+  }
+
+  const clients = await listClients(firmId);
+  return clients.find((client) => client.id === clientId) ?? null;
+}
+
+export async function getAccountantMetrics(firmId?: string) {
   if (appConfig.mockMode) {
     return getDashboardMetrics();
   }
 
-  const clients = await listClients();
-  const requests = await listOpenRequests();
+  const clients = await listClients(firmId);
+  const requests = await listOpenRequests(undefined, firmId);
 
   if (hasAppwriteServerConfig()) {
     const { tables } = createAppwriteServices();
     const documents = await tables.listRows({
       databaseId: appConfig.appwriteDatabaseId,
       tableId: appwriteTables.documents,
+      queries: [...firmQuery(firmId), Query.limit(100)],
     });
 
     return {
@@ -91,12 +107,12 @@ export async function getAccountantMetrics() {
   };
 }
 
-async function listAppwriteClients(): Promise<ClientCompany[]> {
+async function listAppwriteClients(firmId?: string): Promise<ClientCompany[]> {
   const { tables } = createAppwriteServices();
   const { rows } = await tables.listRows({
     databaseId: appConfig.appwriteDatabaseId,
     tableId: appwriteTables.clients,
-    queries: [Query.limit(100), Query.orderDesc("$createdAt")],
+    queries: [...firmQuery(firmId), Query.limit(100), Query.orderDesc("$createdAt")],
   });
 
   return (rows as unknown as AppwriteClientRow[])
@@ -111,4 +127,8 @@ async function listAppwriteClients(): Promise<ClientCompany[]> {
       contactPhone: client.contact_phone,
       isActive: client.is_active !== false,
     }));
+}
+
+function firmQuery(firmId?: string) {
+  return firmId ? [Query.equal("firm_id", firmId)] : [];
 }

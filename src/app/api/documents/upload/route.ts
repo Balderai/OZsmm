@@ -5,6 +5,7 @@ import { appwriteTables, hasAppwriteServerConfig } from "@/lib/appwrite/tables";
 import { STORAGE_BUCKET } from "@/lib/constants";
 import { buildDocumentStoragePath } from "@/lib/storage-paths";
 import { createAppwriteServices } from "@/lib/appwrite/server";
+import { assertClientAccess, authErrorResponse, requirePortalSessionFromRequest } from "@/lib/auth/appwrite";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { uploadMetadataSchema } from "@/lib/validators";
@@ -40,13 +41,33 @@ export async function POST(request: Request) {
   }
 
   if (hasAppwriteServerConfig()) {
-    if (metadata.data.origin === "client_uploaded" && metadata.data.folder_type !== "documents_photos") {
+    let session;
+    try {
+      session = await requirePortalSessionFromRequest(request);
+      await assertClientAccess(session, metadata.data.client_id);
+    } catch (error) {
+      return authErrorResponse(error);
+    }
+
+    const { storage, tables } = createAppwriteServices();
+    const client = await tables.getRow({
+      databaseId: appConfig.appwriteDatabaseId,
+      tableId: appwriteTables.clients,
+      rowId: metadata.data.client_id,
+    });
+
+    if (client.firm_id !== session.profile.firmId || client.is_active === false) {
+      return NextResponse.json({ error: "Mukellef bu firmaya ait degil." }, { status: 403 });
+    }
+
+    const origin = session.profile.role === "accountant" ? "accountant_shared" : "client_uploaded";
+
+    if (session.profile.role === "client" && metadata.data.folder_type !== "documents_photos") {
       return NextResponse.json({ error: "Clients can upload only to Evrak ve Fotograflar" }, { status: 403 });
     }
 
     const documentId = randomUUID();
     const storagePath = documentId;
-    const { storage, tables } = createAppwriteServices();
 
     await storage.createFile({
       bucketId: appConfig.appwriteBucketId,
@@ -59,32 +80,36 @@ export async function POST(request: Request) {
       tableId: appwriteTables.documents,
       rowId: documentId,
       data: stripUndefined({
-        firm_id: "11111111-1111-4111-8111-111111111111",
+        firm_id: session.profile.firmId,
         client_id: metadata.data.client_id,
         folder_type: metadata.data.folder_type,
-        origin: metadata.data.origin,
+        origin,
         title: metadata.data.title,
         storage_bucket: appConfig.appwriteBucketId,
         storage_path: storagePath,
         mime_type: metadata.data.mime_type,
         file_size_bytes: metadata.data.file_size_bytes,
         status: "active",
-        shared_at: metadata.data.origin === "accountant_shared" ? new Date().toISOString() : undefined,
+        created_by: session.user.id,
+        shared_by: origin === "accountant_shared" ? session.user.id : undefined,
+        shared_at: origin === "accountant_shared" ? new Date().toISOString() : undefined,
       }),
     });
 
-    if (metadata.data.origin === "accountant_shared") {
+    if (origin === "accountant_shared") {
       await tables.createRow({
         databaseId: appConfig.appwriteDatabaseId,
         tableId: appwriteTables.notifications,
         rowId: randomUUID(),
         data: stripUndefined({
-          firm_id: "11111111-1111-4111-8111-111111111111",
+          firm_id: session.profile.firmId,
           client_id: metadata.data.client_id,
           category: "document_shared",
           title: "Yeni evrak paylasildi",
           body: `${metadata.data.title} portala eklendi.`,
           action_url: `/client/folders/${metadata.data.folder_type}`,
+          related_document_id: documentId,
+          created_by: session.user.id,
         }),
       });
     }
