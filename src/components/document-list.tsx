@@ -4,15 +4,24 @@ import { DocumentPreview } from "@/components/document-preview";
 import { FOLDER_LABELS } from "@/lib/constants";
 import type { PortalDocument } from "@/types/domain";
 
-export function DocumentList({ documents }: { documents: PortalDocument[] }) {
+export function DocumentList({ documents, compact = false }: { documents: PortalDocument[]; compact?: boolean }) {
   if (documents.length === 0) {
+    if (compact) return null;
+
     return <p className="rounded-lg border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">Bu klasörde henüz evrak yok.</p>;
   }
 
   return (
     <div className="space-y-2">
       {documents.map((document) => (
-        <article key={document.id} className="flex min-h-20 items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+        <article
+          key={document.id}
+          className={
+            compact
+              ? "flex min-h-14 items-center gap-2 border-t border-slate-100 pt-2"
+              : "flex min-h-20 items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
+          }
+        >
           <DocumentPreview documentId={document.id} title={document.title} mimeType={document.mimeType} />
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-sm font-semibold">{document.title}</h3>
