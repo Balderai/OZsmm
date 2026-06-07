@@ -5,7 +5,6 @@ import { requirePortalSession } from "@/lib/auth/appwrite";
 import { hasAppwriteServerConfig } from "@/lib/appwrite/tables";
 import { getAccountantMetrics, listClients } from "@/lib/data/clients";
 import { listDocuments } from "@/lib/data/documents";
-import { listOpenRequests } from "@/lib/data/notifications";
 import { appConfig } from "@/lib/config";
 
 export default async function AccountantPage() {
@@ -16,11 +15,10 @@ export default async function AccountantPage() {
   }
 
   const firmId = session?.profile.firmId;
-  const [clients, metrics, documents, requests] = await Promise.all([
+  const [clients, metrics, documents] = await Promise.all([
     listClients(firmId),
     getAccountantMetrics(firmId),
     listDocuments({ firmId }),
-    listOpenRequests(undefined, firmId),
   ]);
   const dataSourceLabel = appConfig.mockMode ? "Mock" : hasAppwriteServerConfig() ? "Appwrite" : "Supabase";
 
@@ -30,7 +28,6 @@ export default async function AccountantPage() {
         clients={clients}
         metrics={metrics}
         documents={documents}
-        requests={requests}
         dataSourceLabel={dataSourceLabel}
       />
     </AppShell>

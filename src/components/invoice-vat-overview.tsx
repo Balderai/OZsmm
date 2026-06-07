@@ -18,9 +18,21 @@ const outgoingInvoices: InvoiceItem[] = [
   { id: "out-2", title: "Hizmet faturası", amount: 18600, vat: 3720, date: "2026-06-04" },
 ];
 
-export function InvoiceVatOverview() {
-  const incomingVat = sumVat(incomingInvoices);
-  const outgoingVat = sumVat(outgoingInvoices);
+export function InvoiceVatOverview({
+  showIncoming = true,
+  showOutgoing = true,
+}: {
+  showIncoming?: boolean;
+  showOutgoing?: boolean;
+}) {
+  if (!showIncoming && !showOutgoing) {
+    return null;
+  }
+
+  const visibleIncomingInvoices = showIncoming ? incomingInvoices : [];
+  const visibleOutgoingInvoices = showOutgoing ? outgoingInvoices : [];
+  const incomingVat = sumVat(visibleIncomingInvoices);
+  const outgoingVat = sumVat(visibleOutgoingInvoices);
   const currentVat = outgoingVat - incomingVat;
 
   return (
@@ -35,9 +47,9 @@ export function InvoiceVatOverview() {
           API bekleniyor
         </span>
       </div>
-      <div className="grid md:grid-cols-2 md:divide-x md:divide-slate-200">
-        <InvoiceColumn title="Gelen Faturalar" icon="incoming" invoices={incomingInvoices} />
-        <InvoiceColumn title="Giden Faturalar" icon="outgoing" invoices={outgoingInvoices} />
+      <div className={`grid ${showIncoming && showOutgoing ? "md:grid-cols-2 md:divide-x md:divide-slate-200" : ""}`}>
+        {showIncoming && <InvoiceColumn title="Gelen Faturalar" icon="incoming" invoices={incomingInvoices} />}
+        {showOutgoing && <InvoiceColumn title="Giden Faturalar" icon="outgoing" invoices={outgoingInvoices} />}
       </div>
     </section>
   );

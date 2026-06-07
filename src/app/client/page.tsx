@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { ClientPortalPreferences } from "@/components/client-portal-preferences";
 import { FolderCard } from "@/components/folder-card";
-import { InvoiceVatOverview } from "@/components/invoice-vat-overview";
 import { NotificationBell } from "@/components/notification-bell";
 import { UploadDialog } from "@/components/upload-dialog";
 import { requirePortalSession } from "@/lib/auth/appwrite";
@@ -53,7 +53,7 @@ export default async function ClientPage() {
           ))}
         </section>
         <UploadDialog clientId={client.id} />
-        <InvoiceVatOverview />
+        <ClientPortalPreferences clientId={client.id} />
       </div>
     </AppShell>
   );
