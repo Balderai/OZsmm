@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { notificationPayloadSchema } from "@/lib/validators";
+import { loginPayloadSchema, notificationPayloadSchema } from "@/lib/validators";
 
 describe("notification payload validation", () => {
   it("accepts a valid accountant reminder", () => {
@@ -24,5 +24,26 @@ describe("notification payload validation", () => {
         action_url: "https://example.com",
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("login payload validation", () => {
+  it("requires a selected portal role", () => {
+    expect(
+      loginPayloadSchema.safeParse({
+        email: "mukellef@example.com",
+        password: "12345678",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts credentials with a known portal role", () => {
+    expect(
+      loginPayloadSchema.safeParse({
+        email: "mukellef@example.com",
+        password: "12345678",
+        role: "client",
+      }).success,
+    ).toBe(true);
   });
 });

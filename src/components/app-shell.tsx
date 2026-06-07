@@ -8,7 +8,6 @@ import type { Profile } from "@/types/domain";
 export function AppShell({
   children,
   eyebrow,
-  activeRole,
   profile,
 }: {
   children: React.ReactNode;
@@ -36,24 +35,6 @@ export function AppShell({
                 <p className="truncate text-[11px] text-slate-500">{ROLE_LABELS[profile.role]}</p>
               </div>
             )}
-            <nav aria-label="Portal rolleri" className="flex items-center gap-1 rounded-md border border-slate-200 p-1">
-              <Link
-                href="/client"
-                className={`rounded px-3 py-2 text-xs font-medium ${
-                  activeRole === "client" ? "bg-cyan-800 text-white" : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                Mukellef
-              </Link>
-              <Link
-                href="/accountant"
-                className={`rounded px-3 py-2 text-xs font-medium ${
-                  activeRole === "accountant" ? "bg-cyan-800 text-white" : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                Musavir
-              </Link>
-            </nav>
             {profile && <LogoutButton />}
           </div>
         </div>

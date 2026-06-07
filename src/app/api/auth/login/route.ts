@@ -39,6 +39,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Hesap pasif." }, { status: 403 });
     }
 
+    if (profile.role !== payload.data.role) {
+      return NextResponse.json({ error: "Seçilen giriş türü bu hesapla eşleşmiyor." }, { status: 403 });
+    }
+
     const redirectTo = profile.role === "accountant" ? "/accountant" : "/client";
     const response = NextResponse.json({ ok: true, role: profile.role, redirect_to: redirectTo });
     response.cookies.set(getAppwriteSessionCookieName(), session.secret, appwriteSessionCookieOptions(new Date(session.expire)));

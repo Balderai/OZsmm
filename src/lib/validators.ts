@@ -63,4 +63,5 @@ export const createRequestPayloadSchema = z.object({
 export const loginPayloadSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(256),
+  role: z.enum(["accountant", "client"]),
 });

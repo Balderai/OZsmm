@@ -9,7 +9,7 @@ export default function LoginPage() {
         <div>
           <h1 className="text-2xl font-semibold">{appConfig.appName}</h1>
           <p className="mt-2 text-sm text-slate-600">
-            Muhasebeci veya mukellef hesabi ile portala giris yapin.
+            Önce giriş türünü seçin, ardından hesabınızla portala giriş yapın.
           </p>
         </div>
         <LoginForm />
