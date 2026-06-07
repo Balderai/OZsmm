@@ -1,7 +1,9 @@
 export const appConfig = {
   appName: process.env.NEXT_PUBLIC_APP_NAME || "Mukellef Portal",
   firmName: "SMMM Ali ÖZ",
-  mockMode: process.env.MOCK_MODE !== "false",
+  mockMode:
+    process.env.MOCK_MODE !== "false" ||
+    !(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT && process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID && process.env.APPWRITE_API_KEY),
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
   vapidPublicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "",
