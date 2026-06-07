@@ -18,7 +18,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Email veya sifre gecersiz." }, { status: 400 });
   }
 
-  if (appConfig.mockMode || !hasAppwriteServerConfig()) {
+  if (appConfig.mockMode) {
+    const redirectTo = payload.data.role === "accountant" ? "/accountant" : "/client";
+
+    return NextResponse.json({ ok: true, mode: "mock", role: payload.data.role, redirect_to: redirectTo });
+  }
+
+  if (!hasAppwriteServerConfig()) {
     return NextResponse.json({ error: "Gercek giris icin Appwrite ve MOCK_MODE=false gerekir." }, { status: 503 });
   }
 
