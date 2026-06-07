@@ -15,18 +15,19 @@ export function buildDocumentStoragePath(input: {
   folderType: FolderType;
   documentId: string;
   fileName: string;
+  subFolders?: string[];
   now?: Date;
 }) {
   const now = input.now ?? new Date();
   const yyyy = String(now.getFullYear());
   const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const subFolders = input.subFolders?.length ? input.subFolders.map(safeFileName) : [yyyy, mm];
 
   return [
     `firm_${input.firmId}`,
     `client_${input.clientId}`,
     input.folderType,
-    yyyy,
-    mm,
+    ...subFolders,
     `${input.documentId}__${safeFileName(input.fileName)}`,
   ].join("/");
 }

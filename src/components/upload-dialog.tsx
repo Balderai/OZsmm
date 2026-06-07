@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Upload } from "lucide-react";
+import { DOCUMENT_MONTH_LABELS, DOCUMENT_MONTH_VALUES, UPLOAD_DOCUMENT_TYPES } from "@/lib/constants";
 import type { FolderType } from "@/types/domain";
 
 export function UploadDialog({
@@ -18,6 +19,8 @@ export function UploadDialog({
 }) {
   const [fileName, setFileName] = useState<string>("");
   const [title, setTitle] = useState("");
+  const [documentMonth, setDocumentMonth] = useState<(typeof DOCUMENT_MONTH_VALUES)[number]>("01");
+  const [documentType, setDocumentType] = useState<(typeof UPLOAD_DOCUMENT_TYPES)[number]>("Fiş");
   const [status, setStatus] = useState("PDF, fotograf, Excel veya CSV yukleyebilirsiniz.");
   const [pending, setPending] = useState(false);
   const router = useRouter();
@@ -36,6 +39,8 @@ export function UploadDialog({
       formData.set("folder_type", folderType);
       formData.set("origin", origin);
       formData.set("title", title.trim() || file.name);
+      formData.set("document_month", documentMonth);
+      formData.set("document_type", documentType);
 
       const response = await fetch("/api/documents/upload", {
         method: "POST",
@@ -65,6 +70,32 @@ export function UploadDialog({
         className="mb-3 min-h-10 w-full rounded-md border border-slate-200 px-3 text-sm"
         placeholder="Evrak basligi"
       />
+      <div className="mb-3 grid gap-2 sm:grid-cols-2">
+        <select
+          value={documentMonth}
+          onChange={(event) => setDocumentMonth(event.target.value as (typeof DOCUMENT_MONTH_VALUES)[number])}
+          className="min-h-10 w-full rounded-md border border-slate-200 px-3 text-sm"
+          aria-label="Evrak ayı"
+        >
+          {DOCUMENT_MONTH_VALUES.map((month) => (
+            <option key={month} value={month}>
+              {DOCUMENT_MONTH_LABELS[month]}
+            </option>
+          ))}
+        </select>
+        <select
+          value={documentType}
+          onChange={(event) => setDocumentType(event.target.value as (typeof UPLOAD_DOCUMENT_TYPES)[number])}
+          className="min-h-10 w-full rounded-md border border-slate-200 px-3 text-sm"
+          aria-label="Evrak türü"
+        >
+          {UPLOAD_DOCUMENT_TYPES.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <label className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-md bg-cyan-800 px-3 py-2 text-sm font-semibold text-white">
           <Camera aria-hidden="true" size={17} />

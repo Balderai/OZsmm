@@ -6,8 +6,15 @@ import { Bell, Check, FileUp, Plus, Search, Send } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DocumentOpenButton } from "@/components/document-open-button";
 import { DocumentPreview } from "@/components/document-preview";
-import { FOLDER_LABELS, FOLDER_TYPES } from "@/lib/constants";
-import type { ClientCompany, DashboardMetrics, DocumentRequest, PortalDocument } from "@/types/domain";
+import {
+  COMPANY_INFO_FOLDERS,
+  DOCUMENT_MONTH_LABELS,
+  DOCUMENT_MONTH_VALUES,
+  FOLDER_LABELS,
+  FOLDER_TYPES,
+  UPLOAD_DOCUMENT_TYPES,
+} from "@/lib/constants";
+import type { ClientCompany, DashboardMetrics, DocumentRequest, FolderType, PortalDocument } from "@/types/domain";
 
 export function AccountantDashboard({
   clients,
@@ -360,6 +367,8 @@ function ActionPanel({
   pending: boolean;
   onSubmit: (form: HTMLFormElement) => void;
 }) {
+  const [selectedFolderType, setSelectedFolderType] = useState<FolderType>("documents_photos");
+
   return (
     <form
       className="space-y-2 rounded-lg border border-slate-200 p-3"
@@ -389,13 +398,45 @@ function ActionPanel({
           placeholder={mode === "reminder" ? "Mesaj" : "Aciklama"}
         />
       )}
-      <select name="folder_type" className="min-h-10 w-full rounded-md border border-slate-200 px-3 text-sm" defaultValue="documents_photos">
+      <select
+        name="folder_type"
+        className="min-h-10 w-full rounded-md border border-slate-200 px-3 text-sm"
+        value={selectedFolderType}
+        onChange={(event) => setSelectedFolderType(event.target.value as FolderType)}
+      >
         {FOLDER_TYPES.map((folderType) => (
           <option key={folderType} value={folderType}>
             {FOLDER_LABELS[folderType]}
           </option>
         ))}
       </select>
+      {mode === "file" && selectedFolderType === "declarations" && (
+        <select name="sub_folder" className="min-h-10 w-full rounded-md border border-slate-200 px-3 text-sm" defaultValue={COMPANY_INFO_FOLDERS[0]}>
+          {COMPANY_INFO_FOLDERS.map((folder) => (
+            <option key={folder} value={folder}>
+              {folder}
+            </option>
+          ))}
+        </select>
+      )}
+      {mode === "file" && (selectedFolderType === "accruals" || selectedFolderType === "documents_photos") && (
+        <select name="document_month" className="min-h-10 w-full rounded-md border border-slate-200 px-3 text-sm" defaultValue="01">
+          {DOCUMENT_MONTH_VALUES.map((month) => (
+            <option key={month} value={month}>
+              {DOCUMENT_MONTH_LABELS[month]}
+            </option>
+          ))}
+        </select>
+      )}
+      {mode === "file" && selectedFolderType === "documents_photos" && (
+        <select name="document_type" className="min-h-10 w-full rounded-md border border-slate-200 px-3 text-sm" defaultValue={UPLOAD_DOCUMENT_TYPES[0]}>
+          {UPLOAD_DOCUMENT_TYPES.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
+      )}
       {mode !== "file" && (
         <input name="due_at" type="date" className="min-h-10 w-full rounded-md border border-slate-200 px-3 text-sm" />
       )}

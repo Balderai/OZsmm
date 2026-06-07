@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { FOLDER_ICONS, FOLDER_LABELS } from "@/lib/constants";
+import { FOLDER_DESCRIPTIONS, FOLDER_ICONS, FOLDER_LABELS } from "@/lib/constants";
 import type { FolderType } from "@/types/domain";
 
 export function FolderCard({ folderType, count }: { folderType: FolderType; count: number }) {
@@ -16,6 +16,7 @@ export function FolderCard({ folderType, count }: { folderType: FolderType; coun
       </span>
       <span className="min-w-0">
         <span className="block truncate text-base font-semibold">{FOLDER_LABELS[folderType]}</span>
+        <span className="mt-1 block line-clamp-2 text-xs leading-5 text-slate-500">{FOLDER_DESCRIPTIONS[folderType]}</span>
         <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">{count} evrak</span>
       </span>
       <ChevronRight aria-hidden="true" className="text-slate-400" size={20} />

@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { ALLOWED_MIME_TYPES, FOLDER_TYPES, MAX_UPLOAD_BYTES } from "@/lib/constants";
+import {
+  ACCOUNTANT_SUB_FOLDER_VALUES,
+  ALLOWED_MIME_TYPES,
+  DOCUMENT_MONTH_VALUES,
+  FOLDER_TYPES,
+  MAX_UPLOAD_BYTES,
+  UPLOAD_DOCUMENT_TYPES,
+} from "@/lib/constants";
 
 export const notificationPayloadSchema = z.object({
   client_id: z.string().uuid(),
@@ -26,10 +33,14 @@ export const uploadMetadataSchema = z.object({
   client_id: z.string().uuid(),
   folder_type: z.enum(FOLDER_TYPES),
   title: z.string().min(2).max(140),
+  description: z.string().max(1000).optional(),
   file_name: z.string().min(1).max(220),
   mime_type: z.enum(ALLOWED_MIME_TYPES),
   file_size_bytes: z.number().int().positive().max(MAX_UPLOAD_BYTES),
   origin: z.enum(["accountant_shared", "client_uploaded"]).default("client_uploaded"),
+  document_month: z.enum(DOCUMENT_MONTH_VALUES).optional(),
+  document_type: z.enum(UPLOAD_DOCUMENT_TYPES).optional(),
+  sub_folder: z.enum(ACCOUNTANT_SUB_FOLDER_VALUES).optional(),
 });
 
 export const createClientPayloadSchema = z.object({
