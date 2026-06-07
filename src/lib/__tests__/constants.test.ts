@@ -9,7 +9,7 @@ describe("folder constants", () => {
   it("maps the Turkish UI labels", () => {
     expect(FOLDER_LABELS.declarations).toBe("Firma Bilgileri");
     expect(FOLDER_LABELS.accruals).toBe("Aylık Tahakkuklar");
-    expect(FOLDER_LABELS.documents_photos).toBe("Evrak Yükle");
+    expect(FOLDER_LABELS.documents_photos).toBe("Yüklenen Evraklarım");
   });
 
   it("defines month folders and client upload categories", () => {

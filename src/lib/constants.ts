@@ -6,13 +6,13 @@ export const FOLDER_TYPES = ["declarations", "accruals", "documents_photos"] as 
 export const FOLDER_LABELS: Record<FolderType, string> = {
   declarations: "Firma Bilgileri",
   accruals: "Aylık Tahakkuklar",
-  documents_photos: "Evrak Yükle",
+  documents_photos: "Yüklenen Evraklarım",
 };
 
 export const FOLDER_DESCRIPTIONS: Record<FolderType, string> = {
   declarations: "Müşavirinizin paylaştığı resmi belgeler ve mali veriler.",
   accruals: "Müşavirinizin ay ay paylaştığı tahakkuk evrakları.",
-  documents_photos: "Ay ve evrak türü seçerek belge yükleme alanı.",
+  documents_photos: "Ay ve evrak türüne göre yüklediğiniz belgeler.",
 };
 
 export const FOLDER_ICONS: Record<FolderType, LucideIcon> = {

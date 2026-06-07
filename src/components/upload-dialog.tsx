@@ -64,6 +64,12 @@ export function UploadDialog({
 
   return (
     <div className={compact ? "space-y-3" : "rounded-lg border border-slate-200 bg-white p-4 shadow-sm"}>
+      {!compact && (
+        <div className="mb-3">
+          <h2 className="text-base font-semibold">Evrak Yükle</h2>
+          <p className="mt-1 text-sm text-slate-500">Ay ve evrak türünü seçerek yeni belge ekleyin.</p>
+        </div>
+      )}
       <input
         value={title}
         onChange={(event) => setTitle(event.target.value)}

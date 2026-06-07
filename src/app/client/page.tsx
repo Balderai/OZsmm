@@ -52,12 +52,8 @@ export default async function ClientPage() {
             <FolderCard key={folderType} folderType={folderType} count={folderCounts[folderType]} />
           ))}
         </section>
-        <section className="grid gap-4 md:grid-cols-[1fr_320px]">
-          <InvoiceVatOverview />
-          <div>
-            <UploadDialog clientId={client.id} />
-          </div>
-        </section>
+        <UploadDialog clientId={client.id} />
+        <InvoiceVatOverview />
       </div>
     </AppShell>
   );
