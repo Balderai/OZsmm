@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft, FolderOpen } from "lucide-react";
+import { ChevronLeft, ChevronRight, FolderOpen } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { DocumentList } from "@/components/document-list";
-import { UploadDialog } from "@/components/upload-dialog";
 import { requirePortalSession } from "@/lib/auth/appwrite";
 import {
   COMPANY_INFO_FOLDERS,
@@ -56,7 +55,6 @@ export default async function FolderPage({ params }: { params: Promise<{ folderT
           <h1 className="text-2xl font-semibold">{FOLDER_LABELS[typedFolder]}</h1>
           <p className="mt-1 text-sm text-slate-600">{FOLDER_DESCRIPTIONS[typedFolder]}</p>
         </section>
-        {typedFolder === "documents_photos" && <UploadDialog clientId={client.id} folderType={typedFolder} />}
         {typedFolder === "documents_photos" ? (
           <UploadedDocumentFolders documents={documents} />
         ) : (
@@ -104,45 +102,52 @@ function countFolderDocuments(documents: PortalDocument[], folder: string) {
 
 function UploadedDocumentFolders({ documents }: { documents: PortalDocument[] }) {
   return (
-    <div className="space-y-4">
+    <section aria-label="Ay klasörleri" className="grid gap-2 sm:grid-cols-2">
       {DOCUMENT_MONTH_VALUES.map((month) => {
         const monthLabel = DOCUMENT_MONTH_LABELS[month];
         const monthDocuments = documents.filter((document) => getDocumentMonth(document) === monthLabel);
 
         return (
-          <section key={month} className="space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-base font-semibold">{monthLabel}</h2>
-              <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">{monthDocuments.length} evrak</span>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <details key={month} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
+              <span className="grid size-9 place-items-center rounded-md bg-slate-100 text-slate-700">
+                <FolderOpen aria-hidden="true" size={18} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold">{monthLabel}</span>
+                <span className="mt-0.5 block text-xs text-slate-500">{monthDocuments.length} evrak</span>
+              </span>
+              <ChevronRight aria-hidden="true" size={18} className="text-slate-400" />
+            </summary>
+            <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
               {UPLOAD_DOCUMENT_TYPES.map((documentType) => {
                 const categoryDocuments = monthDocuments.filter((document) => getDocumentType(document) === documentType);
 
                 return (
-                  <div key={`${monthLabel}-${documentType}`} className="min-h-16 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-                    <div className="flex items-center gap-2">
+                  <details key={`${monthLabel}-${documentType}`} className="rounded-md border border-slate-200 p-2">
+                    <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
                       <span className="grid size-8 place-items-center rounded-md bg-slate-100 text-slate-700">
                         <FolderOpen aria-hidden="true" size={16} />
                       </span>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold">{documentType}</p>
-                        <p className="mt-0.5 text-xs text-slate-500">{categoryDocuments.length} evrak</p>
-                      </div>
-                    </div>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold">{documentType}</span>
+                        <span className="mt-0.5 block text-xs text-slate-500">{categoryDocuments.length} evrak</span>
+                      </span>
+                      <ChevronRight aria-hidden="true" size={16} className="text-slate-400" />
+                    </summary>
                     {categoryDocuments.length > 0 && (
                       <div className="mt-3">
                         <DocumentList documents={categoryDocuments} compact />
                       </div>
                     )}
-                  </div>
+                  </details>
                 );
               })}
             </div>
-          </section>
+          </details>
         );
       })}
-    </div>
+    </section>
   );
 }
 
