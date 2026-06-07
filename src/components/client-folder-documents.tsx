@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, FolderOpen } from "lucide-react";
+import { ChevronLeft, ChevronRight, FolderOpen } from "lucide-react";
 import { DocumentList } from "@/components/document-list";
 import {
   COMPANY_INFO_FOLDERS,
@@ -41,91 +41,162 @@ export function ClientFolderDocuments({
   }, [clientId, folderType]);
 
   if (folderType === "documents_photos") {
-    return <UploadedDocumentFolders documents={visibleDocuments} />;
+    return <UploadedDocumentNavigator documents={visibleDocuments} />;
   }
 
-  return <ManagedDocumentFolders folderType={folderType} documents={visibleDocuments} />;
+  return <ManagedDocumentNavigator folderType={folderType} documents={visibleDocuments} />;
 }
 
-function ManagedDocumentFolders({ folderType, documents }: { folderType: FolderType; documents: PortalDocument[] }) {
+function ManagedDocumentNavigator({ folderType, documents }: { folderType: FolderType; documents: PortalDocument[] }) {
   const folders = folderType === "declarations" ? [...COMPANY_INFO_FOLDERS] : DOCUMENT_MONTH_FOLDERS;
+  const [activeFolder, setActiveFolder] = useState<string>();
+
+  if (activeFolder) {
+    const folderDocuments = documents.filter((document) => getManagedFolderLabel(document, folderType) === activeFolder);
+
+    return (
+      <section className="space-y-3">
+        <SubfolderHeader title={activeFolder} count={folderDocuments.length} onBack={() => setActiveFolder(undefined)} />
+        <DocumentList documents={folderDocuments} />
+      </section>
+    );
+  }
 
   return (
-    <section aria-label="Alt klasorler" className="grid gap-2 sm:grid-cols-2">
-      {folders.map((folder) => {
-        const folderDocuments = documents.filter((document) => getManagedFolderLabel(document, folderType) === folder);
+    <FolderGrid
+      ariaLabel="Alt klasorler"
+      folders={folders.map((folder) => ({
+        label: folder,
+        count: documents.filter((document) => getManagedFolderLabel(document, folderType) === folder).length,
+        onOpen: () => setActiveFolder(folder),
+      }))}
+    />
+  );
+}
 
-        return (
-          <details key={folder} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
-              <span className="grid size-9 place-items-center rounded-md bg-slate-100 text-slate-700">
-                <FolderOpen aria-hidden="true" size={18} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold">{folder}</span>
-                <span className="mt-0.5 block text-xs text-slate-500">{folderDocuments.length} evrak</span>
-              </span>
-              <ChevronRight aria-hidden="true" size={18} className="text-slate-400" />
-            </summary>
-            {folderDocuments.length > 0 && (
-              <div className="mt-3 border-t border-slate-100 pt-3">
-                <DocumentList documents={folderDocuments} compact />
-              </div>
-            )}
-          </details>
-        );
+function UploadedDocumentNavigator({ documents }: { documents: PortalDocument[] }) {
+  const [activeMonth, setActiveMonth] = useState<string>();
+  const [activeDocumentType, setActiveDocumentType] = useState<string>();
+
+  if (activeMonth && activeDocumentType) {
+    const monthDocuments = documents.filter((document) => getDocumentMonth(document) === activeMonth);
+    const categoryDocuments = monthDocuments.filter((document) => getDocumentType(document) === activeDocumentType);
+
+    return (
+      <section className="space-y-3">
+        <SubfolderHeader
+          title={activeDocumentType}
+          subtitle={activeMonth}
+          count={categoryDocuments.length}
+          onBack={() => setActiveDocumentType(undefined)}
+        />
+        <DocumentList documents={categoryDocuments} />
+      </section>
+    );
+  }
+
+  if (activeMonth) {
+    const monthDocuments = documents.filter((document) => getDocumentMonth(document) === activeMonth);
+
+    return (
+      <section className="space-y-3">
+        <SubfolderHeader
+          title={activeMonth}
+          count={monthDocuments.length}
+          onBack={() => {
+            setActiveMonth(undefined);
+            setActiveDocumentType(undefined);
+          }}
+        />
+        <FolderGrid
+          ariaLabel={`${activeMonth} evrak turleri`}
+          folders={UPLOAD_DOCUMENT_TYPES.map((documentType) => ({
+            label: documentType,
+            count: monthDocuments.filter((document) => getDocumentType(document) === documentType).length,
+            onOpen: () => setActiveDocumentType(documentType),
+          }))}
+        />
+      </section>
+    );
+  }
+
+  return (
+    <FolderGrid
+      ariaLabel="Ay klasorleri"
+      folders={DOCUMENT_MONTH_VALUES.map((month) => {
+        const monthLabel = DOCUMENT_MONTH_LABELS[month];
+
+        return {
+          label: monthLabel,
+          count: documents.filter((document) => getDocumentMonth(document) === monthLabel).length,
+          onOpen: () => setActiveMonth(monthLabel),
+        };
       })}
+    />
+  );
+}
+
+function FolderGrid({
+  ariaLabel,
+  folders,
+}: {
+  ariaLabel: string;
+  folders: Array<{ label: string; count: number; onOpen: () => void }>;
+}) {
+  return (
+    <section aria-label={ariaLabel} className="grid gap-2 sm:grid-cols-2">
+      {folders.map((folder) => (
+        <button
+          key={folder.label}
+          type="button"
+          onClick={folder.onOpen}
+          className="grid min-h-16 grid-cols-[40px_1fr_auto] items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-cyan-700"
+        >
+          <span className="grid size-10 place-items-center rounded-md bg-slate-100 text-slate-700">
+            <FolderOpen aria-hidden="true" size={18} />
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-semibold">{folder.label}</span>
+            <span className="mt-0.5 block text-xs text-slate-500">{folder.count} evrak</span>
+          </span>
+          <ChevronRight aria-hidden="true" size={18} className="text-slate-400" />
+        </button>
+      ))}
     </section>
   );
 }
 
-function UploadedDocumentFolders({ documents }: { documents: PortalDocument[] }) {
+function SubfolderHeader({
+  title,
+  subtitle,
+  count,
+  onBack,
+}: {
+  title: string;
+  subtitle?: string;
+  count: number;
+  onBack: () => void;
+}) {
   return (
-    <section aria-label="Ay klasorleri" className="grid gap-2 sm:grid-cols-2">
-      {DOCUMENT_MONTH_VALUES.map((month) => {
-        const monthLabel = DOCUMENT_MONTH_LABELS[month];
-        const monthDocuments = documents.filter((document) => getDocumentMonth(document) === monthLabel);
-
-        return (
-          <details key={month} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
-              <span className="grid size-9 place-items-center rounded-md bg-slate-100 text-slate-700">
-                <FolderOpen aria-hidden="true" size={18} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold">{monthLabel}</span>
-                <span className="mt-0.5 block text-xs text-slate-500">{monthDocuments.length} evrak</span>
-              </span>
-              <ChevronRight aria-hidden="true" size={18} className="text-slate-400" />
-            </summary>
-            <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-              {UPLOAD_DOCUMENT_TYPES.map((documentType) => {
-                const categoryDocuments = monthDocuments.filter((document) => getDocumentType(document) === documentType);
-
-                return (
-                  <details key={`${monthLabel}-${documentType}`} className="rounded-md border border-slate-200 p-2">
-                    <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
-                      <span className="grid size-8 place-items-center rounded-md bg-slate-100 text-slate-700">
-                        <FolderOpen aria-hidden="true" size={16} />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold">{documentType}</span>
-                        <span className="mt-0.5 block text-xs text-slate-500">{categoryDocuments.length} evrak</span>
-                      </span>
-                      <ChevronRight aria-hidden="true" size={16} className="text-slate-400" />
-                    </summary>
-                    {categoryDocuments.length > 0 && (
-                      <div className="mt-3">
-                        <DocumentList documents={categoryDocuments} compact />
-                      </div>
-                    )}
-                  </details>
-                );
-              })}
-            </div>
-          </details>
-        );
-      })}
+    <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex min-h-9 items-center gap-2 rounded-md border border-slate-200 px-3 text-sm font-semibold hover:bg-slate-100"
+      >
+        <ChevronLeft aria-hidden="true" size={16} />
+        Geri
+      </button>
+      <div className="mt-3 flex items-center gap-3">
+        <span className="grid size-10 place-items-center rounded-md bg-slate-100 text-slate-700">
+          <FolderOpen aria-hidden="true" size={18} />
+        </span>
+        <div className="min-w-0">
+          {subtitle && <p className="truncate text-xs text-slate-500">{subtitle}</p>}
+          <h2 className="truncate text-base font-semibold">{title}</h2>
+          <p className="mt-0.5 text-xs text-slate-500">{count} evrak</p>
+        </div>
+      </div>
     </section>
   );
 }
