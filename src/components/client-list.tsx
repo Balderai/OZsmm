@@ -13,6 +13,13 @@ import {
   FOLDER_TYPES,
   UPLOAD_DOCUMENT_TYPES,
 } from "@/lib/constants";
+import {
+  createDemoDocumentFromUpload,
+  DEMO_DOCUMENTS_CHANGED_EVENT,
+  mergePortalDocuments,
+  readDemoDocuments,
+  saveDemoDocument,
+} from "@/lib/demo-documents";
 import type { ClientCompany, DashboardMetrics, FolderType, PortalDocument } from "@/types/domain";
 
 type ClientPortalPreferences = {
@@ -49,12 +56,14 @@ export function AccountantDashboard({
   const [newClientPhone, setNewClientPhone] = useState("");
   const [selectedFolderType, setSelectedFolderType] = useState<FolderType>("declarations");
   const [portalPreferences, setPortalPreferences] = useState<ClientPortalPreferences>(defaultPortalPreferences);
+  const [demoDocuments, setDemoDocuments] = useState<PortalDocument[]>([]);
   const selectedClient = clients.find((client) => client.id === selectedClientId) || clients[0];
   const filteredClients = useMemo(
     () => clients.filter((client) => client.companyName.toLocaleLowerCase("tr-TR").includes(query.toLocaleLowerCase("tr-TR"))),
     [clients, query],
   );
-  const clientDocuments = documents.filter((document) => document.clientId === selectedClient?.id);
+  const visibleDocuments = useMemo(() => mergePortalDocuments(documents, demoDocuments), [documents, demoDocuments]);
+  const clientDocuments = visibleDocuments.filter((document) => document.clientId === selectedClient?.id);
   const selectedFolderDocuments = clientDocuments.filter((document) => document.folderType === selectedFolderType);
   const folderCounts = Object.fromEntries(
     FOLDER_TYPES.map((folderType) => [folderType, clientDocuments.filter((document) => document.folderType === folderType).length]),
@@ -65,6 +74,21 @@ export function AccountantDashboard({
 
     setPortalPreferences(loadClientPortalPreferences(selectedClient.id));
   }, [selectedClient?.id]);
+
+  useEffect(() => {
+    function refreshDemoDocuments() {
+      setDemoDocuments(readDemoDocuments());
+    }
+
+    refreshDemoDocuments();
+    window.addEventListener(DEMO_DOCUMENTS_CHANGED_EVENT, refreshDemoDocuments);
+    window.addEventListener("storage", refreshDemoDocuments);
+
+    return () => {
+      window.removeEventListener(DEMO_DOCUMENTS_CHANGED_EVENT, refreshDemoDocuments);
+      window.removeEventListener("storage", refreshDemoDocuments);
+    };
+  }, []);
 
   function updatePortalPreference(key: keyof ClientPortalPreferences, value: boolean) {
     if (!selectedClient) return;
@@ -135,6 +159,7 @@ export function AccountantDashboard({
       formData.set("file", file);
       formData.set("client_id", selectedClient.id);
       formData.set("origin", "accountant_shared");
+      const uploadFolderType = formData.get("folder_type") as FolderType;
       if (!String(formData.get("title") || "").trim()) {
         formData.set("title", file.name);
       }
@@ -143,10 +168,24 @@ export function AccountantDashboard({
         method: "POST",
         body: formData,
       });
-      const payload = (await response.json()) as { error?: string };
+      const payload = (await response.json()) as { error?: string; mode?: string };
 
       if (!response.ok) {
         throw new Error(readApiError(payload.error) || "Evrak eklenemedi");
+      }
+
+      if (payload.mode === "mock") {
+        saveDemoDocument(
+          createDemoDocumentFromUpload({
+            clientId: selectedClient.id,
+            firmId: selectedClient.firmId,
+            folderType: uploadFolderType,
+            origin: "accountant_shared",
+            title: String(formData.get("title") || file.name),
+            file,
+            formData,
+          }),
+        );
       }
 
       form.reset();

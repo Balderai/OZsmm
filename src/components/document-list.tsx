@@ -1,3 +1,5 @@
+"use client";
+
 import { Eye } from "lucide-react";
 import { DocumentOpenButton } from "@/components/document-open-button";
 import { DocumentPreview } from "@/components/document-preview";

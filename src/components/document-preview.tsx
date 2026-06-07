@@ -14,10 +14,11 @@ export function DocumentPreview({ documentId, title, mimeType, compact = false }
   const [previewUrl, setPreviewUrl] = useState<string>();
   const [failed, setFailed] = useState(false);
   const isImage = mimeType?.startsWith("image/");
+  const isLocalDemoDocument = documentId.startsWith("local-");
   const sizeClass = compact ? "size-11" : "size-16";
 
   useEffect(() => {
-    if (!isImage) return;
+    if (!isImage || isLocalDemoDocument) return;
 
     let cancelled = false;
 
@@ -43,7 +44,7 @@ export function DocumentPreview({ documentId, title, mimeType, compact = false }
     return () => {
       cancelled = true;
     };
-  }, [documentId, isImage]);
+  }, [documentId, isImage, isLocalDemoDocument]);
 
   if (isImage && previewUrl && !failed) {
     return (

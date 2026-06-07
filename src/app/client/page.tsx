@@ -1,11 +1,10 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { ClientHomeFolders } from "@/components/client-home-folders";
 import { ClientPortalPreferences } from "@/components/client-portal-preferences";
-import { FolderCard } from "@/components/folder-card";
 import { NotificationBell } from "@/components/notification-bell";
 import { UploadDialog } from "@/components/upload-dialog";
 import { requirePortalSession } from "@/lib/auth/appwrite";
-import { FOLDER_TYPES } from "@/lib/constants";
 import { appConfig } from "@/lib/config";
 import { listClientDocuments } from "@/lib/data/documents";
 import { getClientCompany, getDefaultClientCompany } from "@/lib/data/clients";
@@ -32,9 +31,6 @@ export default async function ClientPage() {
     listClientNotifications(client.id, client.firmId),
     listClientDocuments({ clientId: client.id, firmId: client.firmId }),
   ]);
-  const folderCounts = Object.fromEntries(
-    FOLDER_TYPES.map((folderType) => [folderType, documents.filter((document) => document.folderType === folderType).length]),
-  ) as Record<(typeof FOLDER_TYPES)[number], number>;
 
   return (
     <AppShell activeRole="client" eyebrow="Mukellef portal" profile={session?.profile}>
@@ -47,12 +43,8 @@ export default async function ClientPage() {
           </div>
           <NotificationBell notifications={notifications} />
         </section>
-        <section aria-label="Ana klasorler" className="grid gap-3 sm:grid-cols-3">
-          {FOLDER_TYPES.map((folderType) => (
-            <FolderCard key={folderType} folderType={folderType} count={folderCounts[folderType]} />
-          ))}
-        </section>
-        <UploadDialog clientId={client.id} />
+        <ClientHomeFolders clientId={client.id} documents={documents} />
+        <UploadDialog clientId={client.id} firmId={client.firmId} />
         <ClientPortalPreferences clientId={client.id} />
       </div>
     </AppShell>

@@ -4,16 +4,19 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Upload } from "lucide-react";
 import { DOCUMENT_MONTH_LABELS, DOCUMENT_MONTH_VALUES, UPLOAD_DOCUMENT_TYPES } from "@/lib/constants";
+import { createDemoDocumentFromUpload, saveDemoDocument } from "@/lib/demo-documents";
 import type { FolderType } from "@/types/domain";
 
 export function UploadDialog({
   compact = false,
   clientId,
+  firmId,
   folderType = "documents_photos",
   origin = "client_uploaded",
 }: {
   compact?: boolean;
   clientId: string;
+  firmId?: string;
   folderType?: FolderType;
   origin?: "accountant_shared" | "client_uploaded";
 }) {
@@ -46,10 +49,24 @@ export function UploadDialog({
         method: "POST",
         body: formData,
       });
-      const payload = (await response.json()) as { error?: string };
+      const payload = (await response.json()) as { error?: string; mode?: string };
 
       if (!response.ok) {
         throw new Error(payload.error || "Yukleme basarisiz");
+      }
+
+      if (payload.mode === "mock") {
+        saveDemoDocument(
+          createDemoDocumentFromUpload({
+            clientId,
+            firmId,
+            folderType,
+            origin,
+            title: title.trim() || file.name,
+            file,
+            formData,
+          }),
+        );
       }
 
       setTitle("");
