@@ -1,10 +1,8 @@
 import { randomUUID } from "crypto";
-import { Query, type Users } from "node-appwrite";
 import { NextResponse } from "next/server";
 import { appConfig } from "@/lib/config";
-import { appwriteTables, hasAppwriteServerConfig } from "@/lib/appwrite/tables";
-import { createAppwriteServices } from "@/lib/appwrite/server";
 import { authErrorResponse, requirePortalSessionFromRequest } from "@/lib/auth/appwrite";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientPayloadSchema } from "@/lib/validators";
 
 export async function POST(request: Request) {
@@ -18,10 +16,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, mode: "mock", client_id: randomUUID() });
   }
 
-  if (!hasAppwriteServerConfig()) {
-    return NextResponse.json({ error: "Appwrite configuration is missing" }, { status: 500 });
-  }
-
   let session;
   try {
     session = await requirePortalSessionFromRequest(request, "accountant");
@@ -33,88 +27,106 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Musteri kullanicisi icin email ve gecici sifre gerekir." }, { status: 400 });
   }
 
-  const clientId = randomUUID();
-  const membershipId = randomUUID();
-  const { tables, users } = createAppwriteServices();
+  const admin = createAdminClient();
   const fullName = payload.data.contact_name || payload.data.company_name;
-  const user = await upsertClientUser({
-    users,
+  const userResult = await upsertClientUser({
+    admin,
     email: payload.data.contact_email,
     password: payload.data.temporary_password,
     name: fullName,
   });
 
-  await tables.createRow({
-    databaseId: appConfig.appwriteDatabaseId,
-    tableId: appwriteTables.clients,
-    rowId: clientId,
-    data: stripUndefined({
-      firm_id: session.profile.firmId,
-      company_name: payload.data.company_name,
-      tax_number: payload.data.tax_number,
-      contact_name: fullName,
-      contact_email: payload.data.contact_email,
-      contact_phone: payload.data.contact_phone,
-      is_active: true,
-    }),
+  if (!userResult.ok) {
+    return NextResponse.json({ error: userResult.error }, { status: 500 });
+  }
+
+  const user = userResult.user;
+
+  const clientId = randomUUID();
+  const { error: clientError } = await admin.from("clients").insert({
+    id: clientId,
+    firm_id: session.profile.firmId,
+    company_name: payload.data.company_name,
+    tax_number: payload.data.tax_number,
+    contact_name: fullName,
+    contact_email: payload.data.contact_email,
+    contact_phone: payload.data.contact_phone,
+    is_active: true,
   });
 
-  await tables.upsertRow({
-    databaseId: appConfig.appwriteDatabaseId,
-    tableId: appwriteTables.profiles,
-    rowId: user.$id,
-    data: {
-      firm_id: session.profile.firmId,
-      role: "client",
-      full_name: fullName,
-      email: payload.data.contact_email,
-      is_active: true,
-    },
+  if (clientError) {
+    return NextResponse.json({ error: clientError.message }, { status: 500 });
+  }
+
+  const { error: profileError } = await admin.from("profiles").upsert({
+    id: user.id,
+    firm_id: session.profile.firmId,
+    role: "client",
+    full_name: fullName,
+    email: payload.data.contact_email,
+    is_active: true,
   });
 
-  await tables.upsertRow({
-    databaseId: appConfig.appwriteDatabaseId,
-    tableId: appwriteTables.clientMemberships,
-    rowId: membershipId,
-    data: {
+  if (profileError) {
+    return NextResponse.json({ error: profileError.message }, { status: 500 });
+  }
+
+  const { error: membershipError } = await admin.from("client_memberships").upsert(
+    {
       firm_id: session.profile.firmId,
       client_id: clientId,
-      user_id: user.$id,
-      is_active: true,
+      user_id: user.id,
     },
-  });
+    { onConflict: "client_id,user_id" },
+  );
+
+  if (membershipError) {
+    return NextResponse.json({ error: membershipError.message }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true, client_id: clientId });
 }
 
-function stripUndefined<T extends Record<string, unknown>>(input: T) {
-  return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
-}
-
 async function upsertClientUser({
-  users,
+  admin,
   email,
   password,
   name,
 }: {
-  users: Users;
+  admin: ReturnType<typeof createAdminClient>;
   email: string;
   password: string;
   name: string;
 }) {
-  try {
-    return await users.create({
-      userId: randomUUID(),
-      email,
-      password,
-      name,
-    });
-  } catch {
-    const existing = await users.list({ queries: [Query.equal("email", email), Query.limit(1)] });
-    const user = existing.users[0];
-    if (!user) throw new Error("Musteri kullanicisi olusturulamadi.");
+  const { data, error } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { name },
+  });
 
-    await users.updatePassword({ userId: user.$id, password });
-    return user;
+  if (!error && data.user) {
+    return { ok: true as const, user: data.user };
   }
+
+  const { data: users, error: listError } = await admin.auth.admin.listUsers();
+  if (listError) {
+    return { ok: false as const, error: listError.message };
+  }
+
+  const existing = users.users.find((user) => user.email?.toLowerCase() === email.toLowerCase());
+  if (!existing) {
+    return { ok: false as const, error: error?.message || "Musteri kullanicisi olusturulamadi." };
+  }
+
+  const { error: updateError } = await admin.auth.admin.updateUserById(existing.id, {
+    password,
+    user_metadata: { ...existing.user_metadata, name },
+  });
+
+  if (updateError) {
+    return { ok: false as const, error: updateError.message };
+  }
+
+  return { ok: true as const, user: existing };
 }

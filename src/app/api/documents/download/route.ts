@@ -1,20 +1,6 @@
 import { NextResponse } from "next/server";
-import { appConfig } from "@/lib/config";
-import { appwriteTables, hasAppwriteServerConfig } from "@/lib/appwrite/tables";
-import { createAppwriteServices } from "@/lib/appwrite/server";
 import { assertClientAccess, authErrorResponse, requirePortalSessionFromRequest } from "@/lib/auth/appwrite";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-type AppwriteDocumentRow = {
-  $id: string;
-  firm_id: string;
-  client_id: string;
-  storage_bucket?: string;
-  storage_path: string;
-  mime_type?: string;
-  title?: string;
-  status?: string;
-};
 
 export async function GET(request: Request) {
   const documentId = new URL(request.url).searchParams.get("document_id");
@@ -23,53 +9,28 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "document_id is required" }, { status: 400 });
   }
 
-  if (hasAppwriteServerConfig()) {
-    let session;
-    try {
-      session = await requirePortalSessionFromRequest(request);
-    } catch (error) {
-      return authErrorResponse(error);
-    }
-
-    const { tables, storage } = createAppwriteServices();
-    const document = (await tables.getRow({
-      databaseId: appConfig.appwriteDatabaseId,
-      tableId: appwriteTables.documents,
-      rowId: documentId,
-    })) as unknown as AppwriteDocumentRow;
-
-    if (document.status === "deleted" || document.firm_id !== session.profile.firmId) {
-      return NextResponse.json({ error: "Document not found" }, { status: 404 });
-    }
-
-    try {
-      await assertClientAccess(session, document.client_id);
-    } catch (error) {
-      return authErrorResponse(error);
-    }
-
-    const bytes = await storage.getFileDownload({
-      bucketId: document.storage_bucket || appConfig.appwriteBucketId,
-      fileId: document.storage_path,
-    });
-
-    return new Response(bytes, {
-      headers: {
-        "content-type": document.mime_type || "application/octet-stream",
-        "content-disposition": `inline; filename="${encodeURIComponent(document.title || "document")}"`,
-      },
-    });
+  let session;
+  try {
+    session = await requirePortalSessionFromRequest(request);
+  } catch (error) {
+    return authErrorResponse(error);
   }
 
   const admin = createAdminClient();
   const { data: document, error: documentError } = await admin
     .from("documents")
-    .select("storage_bucket, storage_path, mime_type, title")
+    .select("firm_id, client_id, storage_bucket, storage_path, mime_type, title, status")
     .eq("id", documentId)
     .single();
 
-  if (documentError || !document) {
+  if (documentError || !document || document.status === "deleted" || document.firm_id !== session.profile.firmId) {
     return NextResponse.json({ error: "Document not found" }, { status: 404 });
+  }
+
+  try {
+    await assertClientAccess(session, document.client_id);
+  } catch (error) {
+    return authErrorResponse(error);
   }
 
   const { data, error } = await admin.storage.from(document.storage_bucket).download(document.storage_path);

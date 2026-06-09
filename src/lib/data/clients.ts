@@ -98,12 +98,24 @@ export async function getAccountantMetrics(firmId?: string) {
     };
   }
 
+  const supabase = await createServerSupabaseClient();
+  let documentsQuery = supabase.from("documents").select("origin").eq("status", "active");
+
+  if (firmId) {
+    documentsQuery = documentsQuery.eq("firm_id", firmId);
+  }
+
+  const { data: documents, error } = await documentsQuery;
+
+  if (error) {
+    throw error;
+  }
+
   return {
     activeClients: clients.length,
-    openRequests: 0,
-    unreadSharedDocuments: mockDocuments.filter((document) => document.origin === "accountant_shared" && !document.viewedByClient)
-      .length,
-    pendingClientUploads: mockDocuments.filter((document) => document.origin === "client_uploaded").length,
+    openRequests: requests.length,
+    unreadSharedDocuments: documents.filter((document) => document.origin === "accountant_shared").length,
+    pendingClientUploads: documents.filter((document) => document.origin === "client_uploaded").length,
   };
 }
 

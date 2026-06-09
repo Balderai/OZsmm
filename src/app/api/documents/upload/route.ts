@@ -2,13 +2,10 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import type { z } from "zod";
 import { appConfig } from "@/lib/config";
-import { appwriteTables, hasAppwriteServerConfig } from "@/lib/appwrite/tables";
 import { COMPANY_INFO_FOLDERS, DOCUMENT_MONTH_LABELS, STORAGE_BUCKET } from "@/lib/constants";
 import { buildDocumentStoragePath } from "@/lib/storage-paths";
-import { createAppwriteServices } from "@/lib/appwrite/server";
 import { assertClientAccess, authErrorResponse, requirePortalSessionFromRequest } from "@/lib/auth/appwrite";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { uploadMetadataSchema } from "@/lib/validators";
 
 export async function POST(request: Request) {
@@ -50,110 +47,34 @@ export async function POST(request: Request) {
     });
   }
 
-  if (hasAppwriteServerConfig()) {
-    let session;
-    try {
-      session = await requirePortalSessionFromRequest(request);
-      await assertClientAccess(session, metadata.data.client_id);
-    } catch (error) {
-      return authErrorResponse(error);
-    }
-
-    const { storage, tables } = createAppwriteServices();
-    const client = await tables.getRow({
-      databaseId: appConfig.appwriteDatabaseId,
-      tableId: appwriteTables.clients,
-      rowId: metadata.data.client_id,
-    });
-
-    if (client.firm_id !== session.profile.firmId || client.is_active === false) {
-      return NextResponse.json({ error: "Mukellef bu firmaya ait degil." }, { status: 403 });
-    }
-
-    const origin = session.profile.role === "accountant" ? "accountant_shared" : "client_uploaded";
-
-    if (session.profile.role === "client" && metadata.data.folder_type !== "documents_photos") {
-      return NextResponse.json({ error: "Mükellef yalnızca Evrak Yükle alanına evrak yükleyebilir." }, { status: 403 });
-    }
-
-    const documentId = randomUUID();
-    const storagePath = documentId;
-    const description = buildDocumentDescription(metadata.data);
-
-    await storage.createFile({
-      bucketId: appConfig.appwriteBucketId,
-      fileId: documentId,
-      file,
-    });
-
-    await tables.upsertRow({
-      databaseId: appConfig.appwriteDatabaseId,
-      tableId: appwriteTables.documents,
-      rowId: documentId,
-      data: stripUndefined({
-        firm_id: session.profile.firmId,
-        client_id: metadata.data.client_id,
-        folder_type: metadata.data.folder_type,
-        origin,
-        title: metadata.data.title,
-        description,
-        storage_bucket: appConfig.appwriteBucketId,
-        storage_path: storagePath,
-        mime_type: metadata.data.mime_type,
-        file_size_bytes: metadata.data.file_size_bytes,
-        status: "active",
-        created_by: session.user.id,
-        shared_by: origin === "accountant_shared" ? session.user.id : undefined,
-        shared_at: origin === "accountant_shared" ? new Date().toISOString() : undefined,
-      }),
-    });
-
-    if (origin === "accountant_shared") {
-      await tables.createRow({
-        databaseId: appConfig.appwriteDatabaseId,
-        tableId: appwriteTables.notifications,
-        rowId: randomUUID(),
-        data: stripUndefined({
-          firm_id: session.profile.firmId,
-          client_id: metadata.data.client_id,
-          category: "document_shared",
-          title: "Yeni evrak paylasildi",
-          body: `${metadata.data.title} portala eklendi.`,
-          action_url: `/client/folders/${metadata.data.folder_type}`,
-          related_document_id: documentId,
-          created_by: session.user.id,
-        }),
-      });
-    }
-
-    return NextResponse.json({ ok: true, document_id: documentId, storage_path: storagePath });
+  let session;
+  try {
+    session = await requirePortalSessionFromRequest(request);
+    await assertClientAccess(session, metadata.data.client_id);
+  } catch (error) {
+    return authErrorResponse(error);
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data: userResult, error: userError } = await supabase.auth.getUser();
-
-  if (userError || !userResult.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (session.profile.role === "client" && metadata.data.folder_type !== "documents_photos") {
+    return NextResponse.json({ error: "Mukellef yalnizca Evrak Yukle alanina evrak yukleyebilir." }, { status: 403 });
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("firm_id, role")
-    .eq("id", userResult.user.id)
+  const admin = createAdminClient();
+  const { data: client, error: clientError } = await admin
+    .from("clients")
+    .select("id, firm_id, is_active")
+    .eq("id", metadata.data.client_id)
     .single();
 
-  if (profileError || !profile) {
-    return NextResponse.json({ error: "Profile not found" }, { status: 403 });
-  }
-
-  if (profile.role === "client" && metadata.data.folder_type !== "documents_photos") {
-    return NextResponse.json({ error: "Mükellef yalnızca Evrak Yükle alanına evrak yükleyebilir." }, { status: 403 });
+  if (clientError || !client || client.firm_id !== session.profile.firmId || client.is_active === false) {
+    return NextResponse.json({ error: "Mukellef bu firmaya ait degil." }, { status: 403 });
   }
 
   const documentId = randomUUID();
   const description = buildDocumentDescription(metadata.data);
+  const origin = session.profile.role === "accountant" ? "accountant_shared" : "client_uploaded";
   const storagePath = buildDocumentStoragePath({
-    firmId: profile.firm_id,
+    firmId: session.profile.firmId,
     clientId: metadata.data.client_id,
     folderType: metadata.data.folder_type,
     documentId,
@@ -161,7 +82,6 @@ export async function POST(request: Request) {
     subFolders: buildStorageSubFolders(metadata.data),
   });
 
-  const admin = createAdminClient();
   const { error: uploadError } = await admin.storage.from(STORAGE_BUCKET).upload(storagePath, file, {
     contentType: metadata.data.mime_type,
     upsert: false,
@@ -173,19 +93,19 @@ export async function POST(request: Request) {
 
   const { error: documentError } = await admin.from("documents").insert({
     id: documentId,
-    firm_id: profile.firm_id,
+    firm_id: session.profile.firmId,
     client_id: metadata.data.client_id,
     folder_type: metadata.data.folder_type,
-    origin: profile.role === "accountant" ? "accountant_shared" : "client_uploaded",
+    origin,
     title: metadata.data.title,
     description,
     storage_bucket: STORAGE_BUCKET,
     storage_path: storagePath,
     mime_type: metadata.data.mime_type,
     file_size_bytes: metadata.data.file_size_bytes,
-    created_by: userResult.user.id,
-    shared_by: profile.role === "accountant" ? userResult.user.id : null,
-    shared_at: profile.role === "accountant" ? new Date().toISOString() : null,
+    created_by: session.user.id,
+    shared_by: origin === "accountant_shared" ? session.user.id : null,
+    shared_at: origin === "accountant_shared" ? new Date().toISOString() : null,
   });
 
   if (documentError) {
@@ -193,15 +113,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: documentError.message }, { status: 500 });
   }
 
+  if (origin === "accountant_shared") {
+    await admin.from("notifications").insert({
+      firm_id: session.profile.firmId,
+      client_id: metadata.data.client_id,
+      category: "document_shared",
+      title: "Yeni evrak paylasildi",
+      body: `${metadata.data.title} portala eklendi.`,
+      action_url: `/client/folders/${metadata.data.folder_type}`,
+      related_document_id: documentId,
+      created_by: session.user.id,
+    });
+  }
+
   await admin.from("audit_logs").insert({
-    firm_id: profile.firm_id,
-    actor_user_id: userResult.user.id,
+    firm_id: session.profile.firmId,
+    actor_user_id: session.user.id,
     action: "document.upload",
     entity_type: "document",
     entity_id: documentId,
     metadata: {
       folderType: metadata.data.folder_type,
-      origin: profile.role,
+      origin: session.profile.role,
       documentMonth: metadata.data.document_month,
       documentType: metadata.data.document_type,
       subFolder: metadata.data.sub_folder,
@@ -211,26 +144,22 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true, document_id: documentId, storage_path: storagePath });
 }
 
-function stripUndefined<T extends Record<string, unknown>>(input: T) {
-  return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
-}
-
 type UploadMetadata = z.infer<typeof uploadMetadataSchema>;
 
 function validateFolderMetadata(metadata: UploadMetadata) {
   const companyInfoFolders: readonly string[] = COMPANY_INFO_FOLDERS;
 
   if (metadata.folder_type === "declarations" && (!metadata.sub_folder || !companyInfoFolders.includes(metadata.sub_folder))) {
-    return "Firma Bilgileri için alt klasör seçin.";
+    return "Firma Bilgileri icin alt klasor secin.";
   }
 
   if (metadata.folder_type === "accruals" && !metadata.document_month) {
-    return "Aylık Tahakkuklar için ay seçin.";
+    return "Aylik Tahakkuklar icin ay secin.";
   }
 
   if (metadata.folder_type === "documents_photos") {
-    if (!metadata.document_month) return "Evrak yüklemek için ay seçin.";
-    if (!metadata.document_type) return "Evrak yüklemek için evrak türü seçin.";
+    if (!metadata.document_month) return "Evrak yuklemek icin ay secin.";
+    if (!metadata.document_type) return "Evrak yuklemek icin evrak turu secin.";
   }
 
   return undefined;
@@ -238,9 +167,9 @@ function validateFolderMetadata(metadata: UploadMetadata) {
 
 function buildDocumentDescription(metadata: UploadMetadata) {
   const parts = [
-    metadata.sub_folder ? `Klasör: ${metadata.sub_folder}` : undefined,
+    metadata.sub_folder ? `Klasor: ${metadata.sub_folder}` : undefined,
     metadata.document_month ? `Ay: ${DOCUMENT_MONTH_LABELS[metadata.document_month]}` : undefined,
-    metadata.document_type ? `Evrak türü: ${metadata.document_type}` : undefined,
+    metadata.document_type ? `Evrak turu: ${metadata.document_type}` : undefined,
     metadata.description,
   ].filter(Boolean);
 
@@ -257,10 +186,7 @@ function buildStorageSubFolders(metadata: UploadMetadata) {
   }
 
   if (metadata.folder_type === "documents_photos" && metadata.document_month) {
-    return [
-      DOCUMENT_MONTH_LABELS[metadata.document_month],
-      metadata.document_type || "Diğer",
-    ];
+    return [DOCUMENT_MONTH_LABELS[metadata.document_month], metadata.document_type || "Diger"];
   }
 
   return undefined;

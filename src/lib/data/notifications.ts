@@ -3,6 +3,7 @@ import { appConfig } from "@/lib/config";
 import { appwriteTables, hasAppwriteServerConfig } from "@/lib/appwrite/tables";
 import { mockNotifications, mockRequests } from "@/lib/data/mock";
 import { createAppwriteServices } from "@/lib/appwrite/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { DocumentRequest, PortalNotification } from "@/types/domain";
 
 type AppwriteRequestRow = {
@@ -61,7 +62,30 @@ export async function listClientNotifications(clientId: string, firmId?: string)
       }));
   }
 
-  return [];
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("*")
+    .eq("client_id", clientId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return data.map((notification) => ({
+    id: notification.id,
+    firmId: notification.firm_id,
+    clientId: notification.client_id ?? undefined,
+    recipientUserId: notification.recipient_user_id ?? undefined,
+    category: notification.category,
+    title: notification.title,
+    body: notification.body,
+    actionUrl: notification.action_url ?? undefined,
+    dueAt: notification.due_at ?? undefined,
+    readAt: notification.read_at ?? undefined,
+    createdAt: notification.created_at,
+  }));
 }
 
 export async function listOpenRequests(clientId?: string, firmId?: string) {
@@ -82,7 +106,38 @@ export async function listOpenRequests(clientId?: string, firmId?: string) {
       .map(toDocumentRequest);
   }
 
-  return [];
+  const supabase = await createServerSupabaseClient();
+  let query = supabase
+    .from("document_requests")
+    .select("*")
+    .eq("status", "open")
+    .order("created_at", { ascending: false });
+
+  if (firmId) {
+    query = query.eq("firm_id", firmId);
+  }
+
+  if (clientId) {
+    query = query.eq("client_id", clientId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw error;
+  }
+
+  return data.map((request) => ({
+    id: request.id,
+    firmId: request.firm_id,
+    clientId: request.client_id,
+    folderType: request.folder_type,
+    title: request.title,
+    description: request.description ?? undefined,
+    status: request.status,
+    dueAt: request.due_at ?? undefined,
+    createdAt: request.created_at,
+  }));
 }
 
 function firmQuery(firmId?: string) {

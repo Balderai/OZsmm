@@ -1,9 +1,8 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { appConfig } from "@/lib/config";
-import { appwriteTables, hasAppwriteServerConfig } from "@/lib/appwrite/tables";
-import { createAppwriteServices } from "@/lib/appwrite/server";
 import { authErrorResponse, requirePortalSessionFromRequest } from "@/lib/auth/appwrite";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createRequestPayloadSchema } from "@/lib/validators";
 
 export async function POST(request: Request) {
@@ -17,10 +16,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, mode: "mock", request_id: randomUUID() });
   }
 
-  if (!hasAppwriteServerConfig()) {
-    return NextResponse.json({ error: "Appwrite configuration is missing" }, { status: 500 });
-  }
-
   let session;
   try {
     session = await requirePortalSessionFromRequest(request, "accountant");
@@ -28,54 +23,49 @@ export async function POST(request: Request) {
     return authErrorResponse(error);
   }
 
-  const requestId = randomUUID();
-  const { tables } = createAppwriteServices();
-  const client = await tables.getRow({
-    databaseId: appConfig.appwriteDatabaseId,
-    tableId: appwriteTables.clients,
-    rowId: payload.data.client_id,
-  });
+  const admin = createAdminClient();
+  const { data: client, error: clientError } = await admin
+    .from("clients")
+    .select("id, firm_id, is_active")
+    .eq("id", payload.data.client_id)
+    .single();
 
-  if (client.firm_id !== session.profile.firmId || client.is_active === false) {
+  if (clientError || !client || client.firm_id !== session.profile.firmId || client.is_active === false) {
     return NextResponse.json({ error: "Mukellef bu firmaya ait degil." }, { status: 403 });
   }
 
-  await tables.createRow({
-    databaseId: appConfig.appwriteDatabaseId,
-    tableId: appwriteTables.requests,
-    rowId: requestId,
-    data: stripUndefined({
-      firm_id: session.profile.firmId,
-      client_id: payload.data.client_id,
-      folder_type: payload.data.folder_type,
-      title: payload.data.title,
-      description: payload.data.description,
-      status: "open",
-      due_at: payload.data.due_at,
-      created_by: session.user.id,
-    }),
+  const requestId = randomUUID();
+  const { error: requestError } = await admin.from("document_requests").insert({
+    id: requestId,
+    firm_id: session.profile.firmId,
+    client_id: payload.data.client_id,
+    folder_type: payload.data.folder_type,
+    title: payload.data.title,
+    description: payload.data.description,
+    status: "open",
+    due_at: payload.data.due_at,
+    created_by: session.user.id,
   });
 
-  await tables.createRow({
-    databaseId: appConfig.appwriteDatabaseId,
-    tableId: appwriteTables.notifications,
-    rowId: randomUUID(),
-    data: stripUndefined({
-      firm_id: session.profile.firmId,
-      client_id: payload.data.client_id,
-      category: "document_request",
-      title: "Yeni evrak talebi",
-      body: payload.data.title,
-      action_url: "/client",
-      related_request_id: requestId,
-      due_at: payload.data.due_at,
-      created_by: session.user.id,
-    }),
+  if (requestError) {
+    return NextResponse.json({ error: requestError.message }, { status: 500 });
+  }
+
+  const { error: notificationError } = await admin.from("notifications").insert({
+    firm_id: session.profile.firmId,
+    client_id: payload.data.client_id,
+    category: "document_request",
+    title: "Yeni evrak talebi",
+    body: payload.data.title,
+    action_url: "/client",
+    related_request_id: requestId,
+    due_at: payload.data.due_at,
+    created_by: session.user.id,
   });
+
+  if (notificationError) {
+    return NextResponse.json({ error: notificationError.message }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true, request_id: requestId });
-}
-
-function stripUndefined<T extends Record<string, unknown>>(input: T) {
-  return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
 }

@@ -12,5 +12,10 @@ export const appwriteTables = {
 };
 
 export function hasAppwriteServerConfig() {
-  return Boolean(appConfig.appwriteEndpoint && appConfig.appwriteProjectId && process.env.APPWRITE_API_KEY);
+  return Boolean(
+    process.env.APP_BACKEND_PROVIDER === "appwrite" &&
+      appConfig.appwriteEndpoint &&
+      appConfig.appwriteProjectId &&
+      process.env.APPWRITE_API_KEY,
+  );
 }

@@ -1,25 +1,21 @@
-import { cookies } from "next/headers";
-import { Query } from "node-appwrite";
-import { appwriteTables, hasAppwriteServerConfig } from "@/lib/appwrite/tables";
-import { createAppwriteServices, createAppwriteSessionServices } from "@/lib/appwrite/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { appConfig } from "@/lib/config";
 import type { AppRole, ClientMembership, Profile } from "@/types/domain";
 
-type AppwriteProfileRow = {
-  $id: string;
+type ProfileRow = {
+  id: string;
   firm_id: string;
   role: AppRole;
   full_name: string;
   email: string;
-  is_active?: boolean;
+  is_active: boolean;
 };
 
-type AppwriteMembershipRow = {
-  $id: string;
+type MembershipRow = {
+  id: string;
   firm_id: string;
   client_id: string;
   user_id: string;
-  is_active?: boolean;
 };
 
 export type PortalSession = {
@@ -41,37 +37,12 @@ export class AuthError extends Error {
   }
 }
 
-export function getAppwriteSessionCookieName() {
-  if (!appConfig.appwriteProjectId) {
-    throw new Error("Missing NEXT_PUBLIC_APPWRITE_PROJECT_ID");
-  }
-
-  return `a_session_${appConfig.appwriteProjectId}`;
-}
-
-export function appwriteSessionCookieOptions(expires?: Date) {
-  return {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict" as const,
-    path: "/",
-    expires,
-  };
-}
-
 export async function getPortalSessionFromCookies() {
-  if (appConfig.mockMode || !hasAppwriteServerConfig()) return null;
-
-  const cookieStore = await cookies();
-  const sessionSecret = cookieStore.get(getAppwriteSessionCookieName())?.value;
-
-  return getPortalSession(sessionSecret);
+  return getPortalSession();
 }
 
-export async function getPortalSessionFromRequest(request: Request) {
-  if (appConfig.mockMode || !hasAppwriteServerConfig()) return null;
-
-  return getPortalSession(readCookie(request, getAppwriteSessionCookieName()), request.headers.get("user-agent"));
+export async function getPortalSessionFromRequest(_request: Request) {
+  return getPortalSession();
 }
 
 export async function requirePortalSessionFromRequest(request: Request, role?: AppRole) {
@@ -115,73 +86,65 @@ export function authErrorResponse(error: unknown) {
   throw error;
 }
 
-async function getPortalSession(sessionSecret?: string, userAgent?: string | null): Promise<PortalSession | null> {
-  if (!sessionSecret) return null;
+async function getPortalSession(): Promise<PortalSession | null> {
+  if (appConfig.mockMode) return null;
 
-  try {
-    const { account } = createAppwriteSessionServices(sessionSecret, userAgent);
-    const user = await account.get();
-    const { tables } = createAppwriteServices();
-    const profileRow = (await tables.getRow({
-      databaseId: appConfig.appwriteDatabaseId,
-      tableId: appwriteTables.profiles,
-      rowId: user.$id,
-    })) as unknown as AppwriteProfileRow;
+  const supabase = await createServerSupabaseClient();
+  const { data: userResult, error: userError } = await supabase.auth.getUser();
 
-    const profile = toProfile(profileRow);
-    if (!profile.isActive) return null;
-
-    const membershipRows = await tables.listRows({
-      databaseId: appConfig.appwriteDatabaseId,
-      tableId: appwriteTables.clientMemberships,
-      queries: [Query.equal("user_id", user.$id), Query.equal("is_active", true), Query.limit(100)],
-    });
-
-    return {
-      user: {
-        id: user.$id,
-        email: user.email,
-        name: user.name,
-      },
-      profile,
-      memberships: (membershipRows.rows as unknown as AppwriteMembershipRow[]).map(toMembership),
-    };
-  } catch {
+  if (userError || !userResult.user) {
     return null;
   }
-}
 
-function readCookie(request: Request, name: string) {
-  const cookieHeader = request.headers.get("cookie");
-  if (!cookieHeader) return undefined;
+  const { data: profileRow, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, firm_id, role, full_name, email, is_active")
+    .eq("id", userResult.user.id)
+    .single();
 
-  for (const part of cookieHeader.split(";")) {
-    const [rawName, ...rawValue] = part.trim().split("=");
-    if (rawName === name) {
-      return decodeURIComponent(rawValue.join("="));
-    }
+  if (profileError || !profileRow || !profileRow.is_active) {
+    return null;
   }
 
-  return undefined;
+  const { data: membershipRows, error: membershipsError } = await supabase
+    .from("client_memberships")
+    .select("id, firm_id, client_id, user_id")
+    .eq("user_id", userResult.user.id);
+
+  if (membershipsError) {
+    return null;
+  }
+
+  const profile = toProfile(profileRow as ProfileRow);
+
+  return {
+    user: {
+      id: userResult.user.id,
+      email: userResult.user.email || profile.email,
+      name: userResult.user.user_metadata.name || profile.fullName,
+    },
+    profile,
+    memberships: ((membershipRows || []) as MembershipRow[]).map(toMembership),
+  };
 }
 
-function toProfile(row: AppwriteProfileRow): Profile {
+function toProfile(row: ProfileRow): Profile {
   return {
-    id: row.$id,
+    id: row.id,
     firmId: row.firm_id,
     role: row.role,
     fullName: row.full_name,
     email: row.email,
-    isActive: row.is_active !== false,
+    isActive: row.is_active,
   };
 }
 
-function toMembership(row: AppwriteMembershipRow): ClientMembership {
+function toMembership(row: MembershipRow): ClientMembership {
   return {
-    id: row.$id,
+    id: row.id,
     firmId: row.firm_id,
     clientId: row.client_id,
     userId: row.user_id,
-    isActive: row.is_active !== false,
+    isActive: true,
   };
 }

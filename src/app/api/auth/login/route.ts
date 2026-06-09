@@ -1,15 +1,7 @@
 import { NextResponse } from "next/server";
-import { appwriteTables, hasAppwriteServerConfig } from "@/lib/appwrite/tables";
-import { createAppwriteServices } from "@/lib/appwrite/server";
 import { appConfig } from "@/lib/config";
-import { appwriteSessionCookieOptions, getAppwriteSessionCookieName } from "@/lib/auth/appwrite";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { loginPayloadSchema } from "@/lib/validators";
-import type { AppRole } from "@/types/domain";
-
-type ProfileRow = {
-  role: AppRole;
-  is_active?: boolean;
-};
 
 export async function POST(request: Request) {
   const payload = loginPayloadSchema.safeParse(await request.json());
@@ -24,37 +16,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, mode: "mock", role: payload.data.role, redirect_to: redirectTo });
   }
 
-  if (!hasAppwriteServerConfig()) {
-    return NextResponse.json({ error: "Gercek giris icin Appwrite ve MOCK_MODE=false gerekir." }, { status: 503 });
-  }
+  const supabase = await createServerSupabaseClient();
+  const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+    email: payload.data.email,
+    password: payload.data.password,
+  });
 
-  const { account, tables } = createAppwriteServices();
-
-  try {
-    const session = await account.createEmailPasswordSession({
-      email: payload.data.email,
-      password: payload.data.password,
-    });
-    const profile = (await tables.getRow({
-      databaseId: appConfig.appwriteDatabaseId,
-      tableId: appwriteTables.profiles,
-      rowId: session.userId,
-    })) as unknown as ProfileRow;
-
-    if (profile.is_active === false) {
-      return NextResponse.json({ error: "Hesap pasif." }, { status: 403 });
-    }
-
-    if (profile.role !== payload.data.role) {
-      return NextResponse.json({ error: "Seçilen giriş türü bu hesapla eşleşmiyor." }, { status: 403 });
-    }
-
-    const redirectTo = profile.role === "accountant" ? "/accountant" : "/client";
-    const response = NextResponse.json({ ok: true, role: profile.role, redirect_to: redirectTo });
-    response.cookies.set(getAppwriteSessionCookieName(), session.secret, appwriteSessionCookieOptions(new Date(session.expire)));
-
-    return response;
-  } catch {
+  if (authError || !authData.user) {
     return NextResponse.json({ error: "Email veya sifre hatali." }, { status: 401 });
   }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("role, is_active")
+    .eq("id", authData.user.id)
+    .single();
+
+  if (profileError || !profile || profile.is_active === false) {
+    await supabase.auth.signOut();
+    return NextResponse.json({ error: "Hesap pasif veya profil bulunamadi." }, { status: 403 });
+  }
+
+  if (profile.role !== payload.data.role) {
+    await supabase.auth.signOut();
+    return NextResponse.json({ error: "Secilen giris turu bu hesapla eslesmiyor." }, { status: 403 });
+  }
+
+  const redirectTo = profile.role === "accountant" ? "/accountant" : "/client";
+  return NextResponse.json({ ok: true, role: profile.role, redirect_to: redirectTo });
 }

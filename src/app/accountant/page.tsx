@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { AccountantDashboard } from "@/components/client-list";
 import { requirePortalSession } from "@/lib/auth/appwrite";
-import { hasAppwriteServerConfig } from "@/lib/appwrite/tables";
 import { getAccountantMetrics, listClients } from "@/lib/data/clients";
 import { listDocuments } from "@/lib/data/documents";
 import { appConfig } from "@/lib/config";
@@ -20,7 +19,7 @@ export default async function AccountantPage() {
     getAccountantMetrics(firmId),
     listDocuments({ firmId }),
   ]);
-  const dataSourceLabel = appConfig.mockMode ? "Mock" : hasAppwriteServerConfig() ? "Appwrite" : "Supabase";
+  const dataSourceLabel = appConfig.mockMode ? "Mock" : "Supabase";
 
   return (
     <AppShell activeRole="accountant" eyebrow="Musavir paneli" profile={session?.profile}>
